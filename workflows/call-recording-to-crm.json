@@ -1,0 +1,773 @@
+{
+  "name": "Call Recording to CRM (Provider-Agnostic)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "n0000000-0000-4000-8000-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "triggerOn": "folder",
+        "path": "/data/recordings",
+        "events": [
+          "add"
+        ],
+        "options": {
+          "usePolling": true
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000002",
+      "name": "Watch Recordings Folder",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1180,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const DEMO = '/data/recordings/sample-call.m4a';\nconst i = $input.first().json || {};\nreturn [{ json: {\n  audio_ref:    i.path || i.filePath || i.audio_ref || DEMO,\n  meeting_id:   i.meeting_id || ('local-' + Date.now()),\n  participants: i.participants || [],\n  start_time:   i.start_time || new Date().toISOString(),\n  duration_sec: i.duration_sec || 0,\n  channels:     i.channels || 'mono',   // 'dual' = per-leg channels, no diarization needed\n  source:       i.source || 'folder' } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000003",
+      "name": "Ingest Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== RUNTIME CONFIG - the only node you edit =====\n// Providers auto-select on key presence: keys -> cloud, no keys -> local.\n// $env access can be disabled in some n8n installs; hardcode below if so.\nconst env = (k) => { try { return $env[k] || ''; } catch (e) { return ''; } };\n\nconst CFG = {\n  openai_key:    env('OPENAI_API_KEY'),\n  anthropic_key: env('ANTHROPIC_API_KEY'),\n  deepgram_key:  env('DEEPGRAM_API_KEY'),\n  ollama_url:    env('OLLAMA_URL')  || 'http://host.docker.internal:11434',\n  whisper_url:   env('WHISPER_URL') || 'http://host.docker.internal:8000',\n  openai_model:    env('OPENAI_MODEL')    || 'gpt-4o-mini',\n  anthropic_model: env('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514',\n  ollama_model:    env('OLLAMA_MODEL')    || 'qwen2.5:7b',\n  crm_provider:  (env('CRM_PROVIDER') || 'webhook').toLowerCase(),\n  crm_webhook:   env('CRM_WEBHOOK_URL'),\n  crm_token:     env('CRM_TOKEN'),\n  crm_base:      env('CRM_BASE_URL'),\n  monday_board:  env('MONDAY_BOARD_ID'),\n  monday_group:  env('MONDAY_GROUP_ID') || '',\n  min_conf:      Number(env('MIN_CONFIDENCE') || 0.6)\n};\n\n// --- provider election -------------------------------------------------\nlet llm = 'ollama';\nif (CFG.openai_key) llm = 'openai';\nelse if (CFG.anthropic_key) llm = 'anthropic';\n\nlet stt = 'local';\nif (CFG.deepgram_key) stt = 'deepgram';      // preferred cloud: supports diarization\nelse if (CFG.openai_key) stt = 'openai';     // no diarization available\n\nconst ctx = $input.first().json;\nreturn [{ json: { ...ctx, _cfg: { ...CFG, llm_provider: llm, stt_provider: stt },\n  _routing: { llm, stt, crm: CFG.crm_provider,\n    note: `LLM=${llm} STT=${stt} CRM=${CFG.crm_provider}` } }}];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000004",
+      "name": "Runtime Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "command": "=ffmpeg -y -i \"{{ $json.audio_ref }}\" -ar 16000 -ac {{ $json.channels === 'dual' ? 2 : 1 }} -c:a pcm_s16le \"/data/work/{{ $json.meeting_id }}.wav\" 2>&1 && echo NORMALIZED"
+      },
+      "id": "n0000000-0000-4000-8000-000000000005",
+      "name": "Normalize Audio (ffmpeg)",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build STT request. Cloud STT needs the audio bytes; local takes a path.\nconst c = $json._cfg;\nconst wav = '/data/work/' + $json.meeting_id + '.wav';\n\nif (c.stt_provider === 'deepgram') {\n  return [{ json: { ...$json, _stt: { mode: 'binary', file: wav,\n    url: 'https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&diarize=true&punctuate=true',\n    headers: { Authorization: 'Token ' + c.deepgram_key, 'Content-Type': 'audio/wav' } }}}];\n}\nif (c.stt_provider === 'openai') {\n  return [{ json: { ...$json, _stt: { mode: 'multipart', file: wav,\n    url: 'https://api.openai.com/v1/audio/transcriptions',\n    headers: { Authorization: 'Bearer ' + c.openai_key } }}}];\n}\nreturn [{ json: { ...$json, _stt: { mode: 'json' },\n  _req: { url: c.whisper_url + '/transcribe', headers: { 'Content-Type': 'application/json' },\n    body: { path: wav, meeting_id: $json.meeting_id, channels: $json.channels,\n            diarize: $json.channels !== 'dual' } } }}];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000006",
+      "name": "Build STT Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "stt1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json._stt.mode }}",
+              "rightValue": "json"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000007",
+      "name": "Local or Cloud STT?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._req.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._req.headers) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._req.body) }}",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000008",
+      "name": "STT - Local Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        140,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json._stt.file }}",
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000009",
+      "name": "Read Audio Binary",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        140,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Build STT Request').item.json._stt.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($('Build STT Request').item.json._stt.headers) }}",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 1800000
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000010",
+      "name": "STT - Cloud API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten every provider's response into ONE shape:\n// { meeting_id, segments: [{speaker,start,end,text}] }\nconst r = $input.first().json;\nconst ctx = $('Runtime Config').first().json;\nlet segments = [];\n\nif (Array.isArray(r.segments) && r.segments.length && r.segments[0].speaker !== undefined) {\n  segments = r.segments;                                   // local service - already normalized\n} else if (r.results?.channels) {                          // Deepgram\n  const alt = r.results.channels[0].alternatives[0];\n  const words = alt.words || [];\n  if (words.length && words[0].speaker !== undefined) {\n    let cur = null;\n    for (const w of words) {\n      const spk = 'SPEAKER_' + w.speaker;\n      if (!cur || cur.speaker !== spk) {\n        if (cur) segments.push(cur);\n        cur = { speaker: spk, start: w.start, end: w.end, text: '' };\n      }\n      cur.text += (cur.text ? ' ' : '') + (w.punctuated_word || w.word);\n      cur.end = w.end;\n    }\n    if (cur) segments.push(cur);\n  } else {\n    segments = [{ speaker: 'SPEAKER', start: 0, end: 0, text: alt.transcript || '' }];\n  }\n} else if (Array.isArray(r.segments)) {                    // OpenAI verbose_json - NO diarization\n  segments = r.segments.map(s => ({ speaker: 'SPEAKER', start: s.start, end: s.end,\n                                    text: (s.text || '').trim() }));\n} else if (r.text) {\n  segments = [{ speaker: 'SPEAKER', start: 0, end: 0, text: r.text }];\n}\n\nif (!segments.length) throw new Error('Transcription returned no segments.');\nreturn [{ json: { meeting_id: ctx.meeting_id, segments } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000011",
+      "name": "Normalize Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map-reduce. Small models degrade over long context; even large ones lose recall.\nconst r = $input.first().json;\nconst segs = r.segments || [];\nconst MAX = 1200;\nconst chunks = []; let cur = [], words = 0;\nfor (const s of segs) {\n  const w = (s.text || '').split(/\\s+/).length;\n  if (words + w > MAX && cur.length) {\n    chunks.push(cur);\n    cur = [cur[cur.length - 1]];                 // 1-turn overlap\n    words = (cur[0].text || '').split(/\\s+/).length;\n  }\n  cur.push(s); words += w;\n}\nif (cur.length) chunks.push(cur);\nreturn chunks.map((c, i) => ({ json: { chunk_id: i, chunk_total: chunks.length,\n  meeting_id: r.meeting_id,\n  text: c.map(s => `${s.speaker || 'SPEAKER'}: ${s.text}`).join('\\n') } }));"
+      },
+      "id": "n0000000-0000-4000-8000-000000000012",
+      "name": "Chunk Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        },
+        "batchSize": 1
+      },
+      "id": "n0000000-0000-4000-8000-000000000013",
+      "name": "Loop Over Chunks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1020,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One request builder, three providers. Downstream never knows which ran.\nconst c = $('Runtime Config').first().json._cfg;\nconst SCHEMA = {\"type\": \"object\", \"properties\": {\"account\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"domain\": {\"type\": \"string\"}}, \"required\": [\"name\"]}, \"attendees\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"role\": {\"type\": \"string\"}, \"side\": {\"type\": \"string\", \"enum\": [\"rep\", \"prospect\", \"unknown\"]}}, \"required\": [\"name\", \"side\"]}}, \"qualification\": {\"type\": \"object\", \"properties\": {\"budget_signals\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"authority\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"need\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"timeline\": {\"type\": \"string\"}, \"metrics_mentioned\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}}}, \"pain_points\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"paraphrase\": {\"type\": \"string\"}, \"verbatim_quote\": {\"type\": \"string\"}, \"severity\": {\"type\": \"string\", \"enum\": [\"low\", \"medium\", \"high\", \"unknown\"]}}, \"required\": [\"paraphrase\"]}}, \"competitors_mentioned\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\"}, \"context\": {\"type\": \"string\"}}, \"required\": [\"name\"]}}, \"objections\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"objection\": {\"type\": \"string\"}, \"rep_response\": {\"type\": \"string\"}, \"resolved\": {\"type\": \"boolean\"}}, \"required\": [\"objection\"]}}, \"rep_commitments\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"commitment\": {\"type\": \"string\"}, \"due\": {\"type\": \"string\"}, \"explicit\": {\"type\": \"boolean\"}}, \"required\": [\"commitment\"]}}, \"next_steps\": {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": {\"action\": {\"type\": \"string\"}, \"owner\": {\"type\": \"string\"}, \"due_date\": {\"type\": \"string\"}}, \"required\": [\"action\"]}}, \"risk_flags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}, \"recommended_stage\": {\"type\": \"string\"}, \"confidence\": {\"type\": \"number\"}}, \"required\": [\"account\", \"pain_points\", \"rep_commitments\", \"next_steps\", \"confidence\"]};\nconst SYSTEM = \"You extract structured sales-call intelligence from a transcript chunk.\\nRULES:\\n1. Extract ONLY what is explicitly supported by the transcript. Never infer or invent.\\n2. If a field has no support in this chunk, return an empty array or empty string.\\n3. rep_commitments = things the SALES REP promised to do (send pricing, intro an SE, follow up by a date). Highest-value field. Do not confuse with prospect actions.\\n4. verbatim_quote must be an exact substring of the transcript.\\n5. confidence = honest 0..1 confidence for THIS chunk. Low is fine and expected.\\nReturn JSON only.\";\nconst user = `Transcript chunk ${$json.chunk_id + 1} of ${$json.chunk_total}:\\n\\n${$json.text}`;\n\nlet _req;\nif (c.llm_provider === 'openai') {\n  _req = { url: 'https://api.openai.com/v1/chat/completions',\n    headers: { Authorization: 'Bearer ' + c.openai_key, 'Content-Type': 'application/json' },\n    body: { model: c.openai_model, temperature: 0,\n      response_format: { type: 'json_schema',\n        json_schema: { name: 'call_extraction', schema: SCHEMA } },\n      messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }] } };\n} else if (c.llm_provider === 'anthropic') {\n  // Anthropic has no response_format; force a tool call to get schema-valid JSON.\n  _req = { url: 'https://api.anthropic.com/v1/messages',\n    headers: { 'x-api-key': c.anthropic_key, 'anthropic-version': '2023-06-01',\n               'Content-Type': 'application/json' },\n    body: { model: c.anthropic_model, max_tokens: 4096, temperature: 0, system: SYSTEM,\n      messages: [{ role: 'user', content: user }],\n      tools: [{ name: 'record_extraction', description: 'Return the structured extraction',\n                input_schema: SCHEMA }],\n      tool_choice: { type: 'tool', name: 'record_extraction' } } };\n} else {\n  _req = { url: c.ollama_url + '/api/chat',\n    headers: { 'Content-Type': 'application/json' },\n    body: { model: c.ollama_model, stream: false, format: SCHEMA,\n      options: { temperature: 0, num_ctx: 8192 },\n      messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }] } };\n}\nreturn [{ json: { ...$json, _req } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000014",
+      "name": "Build LLM Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._req.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._req.headers) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._req.body) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000015",
+      "name": "LLM Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1480,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flatten Ollama / OpenAI / Anthropic responses to one shape.\nconst r = $input.first().json;\nlet extraction = null, err = null, txt = null;\ntry {\n  if (Array.isArray(r.content)) {                                  // Anthropic\n    const tu = r.content.find(c => c.type === 'tool_use');\n    if (tu) extraction = tu.input;\n    else txt = r.content.map(c => c.text).filter(Boolean).join('');\n  } else if (r.choices?.[0]?.message?.content) {                    // OpenAI\n    txt = r.choices[0].message.content;\n  } else if (r.message?.content) {                                  // Ollama\n    txt = r.message.content;\n  } else if (r.response) {\n    txt = r.response;\n  }\n  if (!extraction && txt) {\n    const s = txt.indexOf('{'), e = txt.lastIndexOf('}');\n    extraction = JSON.parse(s >= 0 ? txt.slice(s, e + 1) : txt);\n  }\n} catch (e) { err = String(e); }\n\nreturn [{ json: { chunk_id: $('Loop Over Chunks').item.json.chunk_id,\n  extraction: extraction || { _parse_error: err || 'no content', _raw: txt } } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000016",
+      "name": "Normalize LLM Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reduce chunk extractions -> one canonical record. CRM-neutral by design.\nconst items = $input.all().map(i => i.json).filter(Boolean);\nconst ctx = $('Runtime Config').first().json;\nconst cfg = ctx._cfg;\n\nconst good = items.filter(i => i.extraction && !i.extraction._parse_error);\nconst dedupe = (arr, key) => { const seen = new Set(), out = [];\n  for (const x of arr) {\n    const k = String(typeof x === 'string' ? x : (x[key] ?? JSON.stringify(x))).toLowerCase().trim();\n    if (k && !seen.has(k)) { seen.add(k); out.push(x); } }\n  return out; };\nconst gather = (path, key) => dedupe(good.flatMap(i => {\n  const v = path.split('.').reduce((o, p) => (o ?? {})[p], i.extraction);\n  return Array.isArray(v) ? v : []; }), key);\n\nconst names = good.map(i => i.extraction?.account?.name).filter(Boolean);\nconst confs = good.map(i => Number(i.extraction?.confidence)).filter(n => !isNaN(n));\nconst avg = confs.length ? confs.reduce((a,b) => a+b, 0) / confs.length : 0;\nconst parseRate = items.length ? good.length / items.length : 0;\n\nreturn [{ json: {\n  meeting_id: ctx.meeting_id, source: ctx.source, start_time: ctx.start_time,\n  account: { name: names.sort((a,b) =>\n      names.filter(v=>v===b).length - names.filter(v=>v===a).length)[0] || '' },\n  attendees:             gather('attendees','name'),\n  pain_points:           gather('pain_points','paraphrase'),\n  competitors_mentioned: gather('competitors_mentioned','name'),\n  objections:            gather('objections','objection'),\n  rep_commitments:       gather('rep_commitments','commitment'),\n  next_steps:            gather('next_steps','action'),\n  risk_flags:            gather('risk_flags'),\n  qualification: {\n    budget_signals: gather('qualification.budget_signals'),\n    authority: gather('qualification.authority'),\n    need: gather('qualification.need'),\n    metrics_mentioned: gather('qualification.metrics_mentioned'),\n    timeline: good.map(i => i.extraction?.qualification?.timeline).filter(Boolean)[0] || '' },\n  recommended_stage: good.map(i => i.extraction?.recommended_stage).filter(Boolean)[0] || '',\n  confidence: Number((avg * parseRate).toFixed(3)),\n  _min_confidence: cfg.min_conf,\n  provenance: { llm_provider: cfg.llm_provider, stt_provider: cfg.stt_provider,\n    model: cfg.llm_provider === 'openai' ? cfg.openai_model\n         : cfg.llm_provider === 'anthropic' ? cfg.anthropic_model : cfg.ollama_model,\n    chunks_total: items.length, chunks_parsed: good.length,\n    chunks_failed: items.length - good.length,\n    generated_at: new Date().toISOString() } } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000017",
+      "name": "Reduce to Canonical Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cg1",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": "={{ $json._min_confidence }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000018",
+      "name": "Confidence Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CRM ADAPTER - canonical record -> provider payload.\n// Default 'webhook' posts the canonical record anywhere: works with ANY CRM,\n// including ones not implemented here. Add a branch to support a new system.\nconst rec = $json;\nconst c = $('Runtime Config').first().json._cfg;\n\nconst lines = [];\nif (rec.rep_commitments?.length) lines.push('COMMITMENTS MADE BY REP:',\n  ...rec.rep_commitments.map(x => '- ' + x.commitment + (x.due ? ' (due ' + x.due + ')' : '')), '');\nif (rec.next_steps?.length) lines.push('NEXT STEPS:',\n  ...rec.next_steps.map(x => '- ' + x.action + ' [' + (x.owner || 'unassigned') + ']'), '');\nif (rec.objections?.length) lines.push('OBJECTIONS:',\n  ...rec.objections.map(x => '- ' + x.objection), '');\nif (rec.pain_points?.length) lines.push('PAIN POINTS:',\n  ...rec.pain_points.map(x => '- ' + x.paraphrase), '');\nif (rec.competitors_mentioned?.length)\n  lines.push('COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', '), '');\nif (rec.risk_flags?.length) lines.push('RISK FLAGS: ' + rec.risk_flags.join(', '), '');\nlines.push(`(${rec.provenance?.llm_provider}/${rec.provenance?.model} \u00b7 confidence ${rec.confidence})`);\nconst summary = lines.join('\\n');\nconst subject = 'Call Summary - ' + (rec.account.name || 'Unknown Account');\n\nconst J = { 'Content-Type': 'application/json' };\nlet _req;\nswitch (c.crm_provider) {\n  case 'zoho':       // NOTE: region-specific domain (.com/.eu/.in/.com.au) via CRM_BASE_URL\n    _req = { url: (c.crm_base || 'https://www.zohoapis.com') + '/crm/v5/Calls',\n      headers: { ...J, Authorization: 'Zoho-oauthtoken ' + c.crm_token },\n      body: { data: [{ Subject: subject, Description: summary,\n        Call_Start_Time: rec.start_time, Call_Type: 'Inbound', Call_Duration: '00:30' }] } };\n    break;\n  case 'hubspot':\n    _req = { url: 'https://api.hubapi.com/crm/v3/objects/calls',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { properties: { hs_call_title: subject, hs_call_body: summary,\n        hs_timestamp: rec.start_time, hs_call_direction: 'INBOUND' } } };\n    break;\n  case 'salesforce':\n    _req = { url: (c.crm_base || '') + '/services/data/v60.0/sobjects/Task',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { Subject: subject, Description: summary, Status: 'Completed', TaskSubtype: 'Call' } };\n    break;\n  case 'pipedrive':\n    _req = { url: (c.crm_base || 'https://api.pipedrive.com') + '/v1/notes?api_token=' + c.crm_token,\n      headers: J, body: { content: '<b>' + subject + '</b><br>' + summary.replace(/\\n/g, '<br>') } };\n    break;\n  case 'monday': {\n    const m = rec._monday;\n    if (!m) throw new Error('monday mapping missing - Discover Schema did not run.');\n    const cv = JSON.stringify(m.column_values).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\n    const grp = m.group_id ? `group_id: \"${m.group_id}\", ` : '';\n    _req = { url: 'https://api.monday.com/v2',\n      headers: { ...J, Authorization: c.crm_token, 'API-Version': '2024-10' },\n      body: { query: `mutation { create_item (board_id: ${m.board_id}, ${grp}` +\n        `item_name: \"${m.item_name.replace(/\"/g, '\\\\\"')}\", ` +\n        `column_values: \"${cv}\") { id } }` } };\n    break;\n  }\n  default:           // generic webhook - canonical record, untouched\n    _req = { url: c.crm_webhook, headers: J, body: rec };\n}\nif (!_req.url) throw new Error('No CRM target configured. Set CRM_WEBHOOK_URL or CRM_PROVIDER + CRM_BASE_URL.');\nreturn [{ json: { ...rec, _req } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000019",
+      "name": "Build CRM Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._req.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._req.headers) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._req.body) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000020",
+      "name": "CRM Write",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        40
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "n0000000-0000-4000-8000-000000000021",
+      "name": "Human Review Queue",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## EDIT ONE NODE: Runtime Config\\n\\n**Providers auto-elect on key presence.**\\n\\nNo keys at all -> Ollama + local Whisper.\\nOPENAI_API_KEY -> GPT.\\nANTHROPIC_API_KEY -> Claude.\\nDEEPGRAM_API_KEY -> cloud STT *with*\\ndiarization.\\n\\nSo the template runs for a stranger with\\none API key, and runs fully private with\\nzero keys. Same workflow, same canvas.\\n\\nIf your n8n blocks `$env` in Code nodes,\\nhardcode values in the CFG object.",
+        "height": 400,
+        "width": 320,
+        "color": 4
+      },
+      "id": "n0000000-0000-4000-8000-000000000031",
+      "name": "Note 0031",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STT split\\n\\nOnly place the graph forks on provider,\\nbecause cloud STT needs the audio *bytes*\\nand the local service takes a *path*.\\n\\n**Diarization warning:** OpenAI's audio API\\nreturns NO speaker labels. Deepgram does\\n(`diarize=true`). If channels='dual' the\\ndialer already separated the legs and none\\nof this matters.\\n\\n**25MB cap** on OpenAI audio - long calls\\nneed splitting first.",
+        "height": 420,
+        "width": 330,
+        "color": 5
+      },
+      "id": "n0000000-0000-4000-8000-000000000032",
+      "name": "Note 0032",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Everything below is provider-blind\\n\\n`Normalize Transcript` and `Normalize LLM\\nResponse` flatten every vendor's shape into\\none contract. Chunking, reduction, gating\\nand CRM mapping never learn which provider\\nran.\\n\\nThat is what makes this swappable rather\\nthan three workflows pretending to be one.",
+        "height": 300,
+        "width": 340,
+        "color": 3
+      },
+      "id": "n0000000-0000-4000-8000-000000000033",
+      "name": "Note 0033",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        580,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Confidence gate\\n\\nScore is discounted by chunk parse-success\\nrate, so silent JSON failures drag it down\\ninstead of hiding inside an average.\\n\\nBelow MIN_CONFIDENCE (default 0.6) routes\\nto human review. Never let unreviewed model\\noutput write to a live CRM - that is how\\nthese projects lose trust permanently.",
+        "height": 290,
+        "width": 320,
+        "color": 2
+      },
+      "id": "n0000000-0000-4000-8000-000000000034",
+      "name": "Note 0034",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## CRM-agnostic\\n\\nCanonical record -> adapter -> provider.\\n\\nDefault `webhook` POSTs the canonical JSON\\nanywhere: works with ANY CRM, including ones\\nnot implemented, and needs no credentials -\\npoint it at webhook.site to demo.\\n\\nzoho | hubspot | salesforce | pipedrive are\\nbuilt in. Adding one is a new `case` in\\nBuild CRM Request. Nothing upstream moves.\\n\\nZoho: set CRM_BASE_URL for your region\\n(.com / .eu / .in / .com.au).",
+        "height": 420,
+        "width": 330,
+        "color": 6
+      },
+      "id": "n0000000-0000-4000-8000-000000000035",
+      "name": "Note 0035",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// monday has NO standard fields - every board is user-defined columns.\n// So we cannot hardcode a mapping; we must introspect. This is the same\n// introspection the Board Audit workflow uses.\nconst c = $('Runtime Config').first().json._cfg;\nif (c.crm_provider !== 'monday') return [{ json: { ...$json, _skip_discovery: true } }];\nif (!c.monday_board) throw new Error('MONDAY_BOARD_ID not set.');\n\nreturn [{ json: { ...$json, _req: {\n  url: 'https://api.monday.com/v2',\n  headers: { 'Content-Type': 'application/json', Authorization: c.crm_token,\n             'API-Version': '2024-10' },\n  body: { query: `query { boards(ids: [${c.monday_board}]) { id name\n            columns { id title type settings_str }\n            groups { id title } } }` }\n} }}];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000022",
+      "name": "Discover CRM Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._req.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._req.headers) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._req.body) }}",
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000023",
+      "name": "Fetch Board Columns",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1880,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Map canonical record -> this board's actual column ids.\n// Deterministic synonym + type matching. Reliable, debuggable, no LLM needed here.\nconst c = $('Runtime Config').first().json._cfg;\nconst rec = $('Reduce to Canonical Record').first().json;\nconst resp = $json;\n\nif (c.crm_provider !== 'monday') return [{ json: rec }];\n\nconst board = resp?.data?.boards?.[0];\nif (!board) throw new Error('monday board not found or token lacks access.');\nconst cols = board.columns || [];\n\nconst norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');\nconst SYNONYMS = {\n  summary:      ['summary','callsummary','notes','callnotes','description','details'],\n  commitments:  ['commitments','repcommitments','promised','followups','owed'],\n  next_steps:   ['nextsteps','nextstep','actions','actionitems','todo'],\n  objections:   ['objections','concerns','blockers'],\n  pain_points:  ['painpoints','pain','challenges','problems','needs'],\n  competitors:  ['competitors','competition','competitor','vsvendor'],\n  risk:         ['risk','riskflags','dealrisk','healthflags'],\n  stage:        ['stage','status','dealstage','pipelinestage'],\n  timeline:     ['timeline','closedate','expectedclose','targetdate'],\n  confidence:   ['confidence','aiconfidence','score'],\n  account:      ['account','company','organisation','organization','client','customer']\n};\nconst findCol = (key, allowed) => {\n  const wants = SYNONYMS[key] || [];\n  return cols.find(col => wants.includes(norm(col.title)) &&\n                          (!allowed || allowed.includes(col.type)));\n};\n\nconst bullets = (arr, f) => (arr || []).map(x => '\u2022 ' + f(x)).join('\\n');\nconst summary = [\n  rec.rep_commitments?.length ? 'COMMITMENTS BY REP:\\n' +\n    bullets(rec.rep_commitments, x => x.commitment + (x.due ? ' (due ' + x.due + ')' : '')) : '',\n  rec.next_steps?.length ? 'NEXT STEPS:\\n' +\n    bullets(rec.next_steps, x => x.action + ' [' + (x.owner || 'unassigned') + ']') : '',\n  rec.objections?.length ? 'OBJECTIONS:\\n' + bullets(rec.objections, x => x.objection) : '',\n  rec.pain_points?.length ? 'PAIN POINTS:\\n' + bullets(rec.pain_points, x => x.paraphrase) : '',\n  rec.competitors_mentioned?.length ?\n    'COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', ') : '',\n  rec.risk_flags?.length ? 'RISK: ' + rec.risk_flags.join(', ') : ''\n].filter(Boolean).join('\\n\\n');\n\nconst TEXTY = ['text','long_text'];\nconst values = {}; const mapped = []; const unmapped = [];\nconst put = (key, val, allowed) => {\n  const col = findCol(key, allowed);\n  if (col) { values[col.id] = val; mapped.push(`${key} -> ${col.title} (${col.id})`); }\n  else unmapped.push(key);\n};\n\nput('summary',     summary, TEXTY);\nput('commitments', bullets(rec.rep_commitments, x => x.commitment), TEXTY);\nput('next_steps',  bullets(rec.next_steps, x => x.action), TEXTY);\nput('objections',  bullets(rec.objections, x => x.objection), TEXTY);\nput('pain_points', bullets(rec.pain_points, x => x.paraphrase), TEXTY);\nput('competitors', (rec.competitors_mentioned || []).map(x => x.name).join(', '), TEXTY);\nput('risk',        (rec.risk_flags || []).join(', '), TEXTY);\nput('confidence',  rec.confidence, ['numbers']);\n\nconst stageCol = findCol('stage', ['status','color']);\nif (stageCol && rec.recommended_stage) {\n  values[stageCol.id] = { label: rec.recommended_stage };\n  mapped.push(`stage -> ${stageCol.title} (${stageCol.id})`);\n} else if (rec.recommended_stage) unmapped.push('stage');\n\nreturn [{ json: { ...rec, _monday: {\n  board_id: board.id, board_name: board.name,\n  group_id: c.monday_group || board.groups?.[0]?.id || '',\n  item_name: 'Call - ' + (rec.account.name || 'Unknown') + ' - ' +\n             new Date(rec.start_time).toISOString().slice(0,10),\n  column_values: values,\n  // surfaced deliberately: unmapped fields ARE the audit finding\n  mapping_report: { mapped, unmapped,\n    note: unmapped.length ? 'Board has no column for: ' + unmapped.join(', ') +\n          '. Extraction is richer than the board can store.' : 'All fields mapped.' }\n} }}];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000024",
+      "name": "Map to Board Columns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## monday.com\\n\\nmonday has **no standard fields** - a board is\\nwhatever columns the customer made. You cannot\\nhardcode a mapping, so we introspect the board\\nand match canonical fields to real column ids.\\n\\n`mapping_report.unmapped` is the money:\\nfields the AI extracted that the board has\\nnowhere to store. That list IS a consulting\\nfinding - hand it to them.\\n\\nSet MONDAY_BOARD_ID + CRM_TOKEN.\\nOther CRMs skip these three nodes.",
+        "height": 360,
+        "width": 330,
+        "color": 7
+      },
+      "id": "n0000000-0000-4000-8000-000000000036",
+      "name": "Note 0036",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        -380
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Ingest Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watch Recordings Folder": {
+      "main": [
+        [
+          {
+            "node": "Ingest Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest Contract": {
+      "main": [
+        [
+          {
+            "node": "Runtime Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Runtime Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Audio (ffmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Audio (ffmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Build STT Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build STT Request": {
+      "main": [
+        [
+          {
+            "node": "Local or Cloud STT?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Local or Cloud STT?": {
+      "main": [
+        [
+          {
+            "node": "STT - Local Service",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Audio Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Audio Binary": {
+      "main": [
+        [
+          {
+            "node": "STT - Cloud API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STT - Local Service": {
+      "main": [
+        [
+          {
+            "node": "Normalize Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STT - Cloud API": {
+      "main": [
+        [
+          {
+            "node": "Normalize Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Transcript": {
+      "main": [
+        [
+          {
+            "node": "Chunk Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Transcript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Chunks": {
+      "main": [
+        [
+          {
+            "node": "Reduce to Canonical Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Request": {
+      "main": [
+        [
+          {
+            "node": "LLM Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Call": {
+      "main": [
+        [
+          {
+            "node": "Normalize LLM Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize LLM Response": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reduce to Canonical Record": {
+      "main": [
+        [
+          {
+            "node": "Confidence Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence Gate": {
+      "main": [
+        [
+          {
+            "node": "Discover CRM Schema",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Human Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build CRM Request": {
+      "main": [
+        [
+          {
+            "node": "CRM Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discover CRM Schema": {
+      "main": [
+        [
+          {
+            "node": "Fetch Board Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Board Columns": {
+      "main": [
+        [
+          {
+            "node": "Map to Board Columns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map to Board Columns": {
+      "main": [
+        [
+          {
+            "node": "Build CRM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
