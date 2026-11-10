@@ -1,0 +1,167 @@
+{
+  "_meta": {
+    "synthetic": true,
+    "note": "Hand-written synthetic transcripts. Every company, person and product named here is fictional. No real call audio or customer data."
+  },
+  "cases": [
+    {
+      "id": "harborline-freight",
+      "segments": [
+        {
+          "speaker": "REP",
+          "text": "Thanks for the time, Priya. How are your reps logging calls at Harborline Freight today?"
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "By hand. Our reps spend about fifteen minutes per call on notes, and we trialled CallScribe last year but it never synced to our CRM."
+        },
+        {
+          "speaker": "REP",
+          "text": "Understood. I will send you the integration guide by Thursday, and I will set up a call with our solutions engineer next week."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Good. I need to brief our VP of Sales before the end of the month."
+        }
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send the integration guide by Thursday",
+          "Set up a call with the solutions engineer next week"
+        ],
+        "competitors_mentioned": [
+          "CallScribe"
+        ],
+        "next_steps": [
+          "Priya briefs the VP of Sales before the end of the month"
+        ]
+      }
+    },
+    {
+      "id": "tallgrass-dental",
+      "segments": [
+        {
+          "speaker": "REP",
+          "text": "Marcus, last time you mentioned the front desk at Tallgrass Dental misses follow-ups."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Yes. We lose track of who promised a callback, and nobody writes it down."
+        },
+        {
+          "speaker": "REP",
+          "text": "I will email you a sample report tomorrow so you can see what gets captured."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Fine. Send it and I will review it with our office manager on Monday."
+        }
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Email a sample report tomorrow"
+        ],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Marcus reviews the sample report with the office manager on Monday"
+        ]
+      }
+    },
+    {
+      "id": "quarry-ridge-supply",
+      "segments": [
+        {
+          "speaker": "REP",
+          "text": "Elena, where did the evaluation at Quarry Ridge Supply land?"
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "We are comparing you with NoteHawk and DialSense. NoteHawk quoted us 40 dollars per seat."
+        },
+        {
+          "speaker": "REP",
+          "text": "I cannot match that today, but I will get you a quote for 25 seats by Friday and I will share two customer references."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Then we will decide at the board meeting on the 18th."
+        }
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Provide a quote for 25 seats by Friday",
+          "Share two customer references"
+        ],
+        "competitors_mentioned": [
+          "NoteHawk",
+          "DialSense"
+        ],
+        "next_steps": [
+          "Decision at the board meeting on the 18th"
+        ]
+      }
+    },
+    {
+      "id": "pinecrest-heating",
+      "segments": [
+        {
+          "speaker": "REP",
+          "text": "Thanks Joel. Does Pinecrest Heating record its sales calls today?"
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "No. I will ask our phone vendor whether recording can be switched on, and I will send you our call volumes."
+        },
+        {
+          "speaker": "REP",
+          "text": "That helps. Nothing needed from my side until then."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Our dispatchers retype every job note twice, which is the real problem."
+        }
+      ],
+      "expected": {
+        "rep_commitments": [],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Joel asks the phone vendor about call recording",
+          "Joel sends call volumes"
+        ]
+      }
+    },
+    {
+      "id": "bluefin-analytics",
+      "segments": [
+        {
+          "speaker": "REP",
+          "text": "Sam, you said Bluefin Analytics needs this live before the renewal with CallScribe."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "Right. Our CallScribe contract renews on March 1st and security has to sign off first."
+        },
+        {
+          "speaker": "REP",
+          "text": "I will send our SOC 2 report today, and I will book the security review for next Tuesday."
+        },
+        {
+          "speaker": "PROSPECT",
+          "text": "If security approves, I will take the order form to finance."
+        }
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send the SOC 2 report today",
+          "Book the security review for next Tuesday"
+        ],
+        "competitors_mentioned": [
+          "CallScribe"
+        ],
+        "next_steps": [
+          "Sam takes the order form to finance if security approves"
+        ]
+      }
+    }
+  ]
+}

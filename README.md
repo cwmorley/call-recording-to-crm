@@ -11,9 +11,11 @@ No per-seat SaaS, no per-call API cost, no third party touching customer
 conversations. Provider-agnostic by design:
 
 - **AI provider**: if `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set, routes to
-  cloud; otherwise falls back to local Ollama. Same for transcription — Deepgram
-  or OpenAI Whisper API if a key is present, otherwise a local faster-whisper
-  service (`docs/whisper_service.py`).
+  cloud; otherwise falls back to local Ollama. Transcription uses Deepgram if
+  `DEEPGRAM_API_KEY` is set, otherwise a local faster-whisper service
+  (`services/whisper_service.py`). OpenAI transcription is not supported: the
+  endpoint needs a multipart upload with a `model` field, and the earlier
+  attempt posted raw bytes, so it was removed rather than left broken.
 - **CRM**: adapter pattern with cases for Zoho, HubSpot, Salesforce, Pipedrive,
   monday.com, and a generic webhook default for anything else.
 
@@ -24,9 +26,120 @@ timeouts, small-model hallucination risk), and packaging/go-to-market strategy.
 
 ## Status
 
-Built, JSON-validated. Not yet run against a real call recording end-to-end —
-node `typeVersion`s were written from memory of n8n's node library and should
-be spot-checked against your n8n instance before a client-facing demo.
+What is verified, and how:
+
+- **Node logic is tested outside n8n.** `npm test` runs the exact code that ships
+  inside each Code node against synthetic transcripts and model responses.
+  60 tests cover ingest, provider election, transcript normalization, chunking,
+  response parsing, the reducer, the validator, the review path, the CRM
+  adapters, key handling, the workflow wiring, and the eval scorer. 5 Python
+  tests cover the transcription service's path guard.
+- **The workflow file is a build output.** `src/nodes/*.js` is the source of
+  truth; `npm run build` injects it into the workflow, and CI fails if the
+  committed JSON differs.
+- **Node formats were checked against the n8n node source** (`n8n-io/n8n`,
+  `packages/nodes-base`, master, November 2026): the `typeVersion` of every
+  node used, the If v2 condition format, the HTTP Request parameter names, the
+  Split In Batches output order (done, loop), and the fact that Execute Command
+  outputs only `exitCode`, `stderr` and `stdout`.
+- **The HubSpot payload was checked against HubSpot's documentation**: the
+  [calls endpoint and property names](https://developers.hubspot.com/docs/api-reference/crm-calls-v3/guide)
+  and the [association type ids](https://developers.hubspot.com/docs/api-reference/latest/crm/associations/associate-records/guide)
+  (call to contact 194, company 182, deal 206).
+- **Also checked against vendor documentation**: Deepgram `multichannel=true`,
+  the Pipedrive `x-api-token` header, Zoho's mandatory Calls fields, and the
+  OpenAI transcription endpoint's required form fields (the reason that path
+  was removed).
+
+What is not verified yet:
+
+- **No end-to-end run inside n8n against a real recording.** Reading the node
+  source is not the same as importing the workflow and running it.
+- **No live CRM write.** No request in this repo has been sent to HubSpot, Zoho,
+  Salesforce, Pipedrive or monday.com. Salesforce and monday payloads were not
+  checked against documentation at all. Zoho documents `Call_Duration` as
+  `HH:mm`, which is what the adapter sends; whether a live org reads it that
+  way is unconfirmed. Whether HubSpot renders line breaks in `hs_call_body` is
+  unconfirmed.
+- **No live model run.** The eval set scores hand-written sample outputs only.
+- **The transcription service has not been run.** Its path guard is unit
+  tested; the model and diarization code needs a GPU and model weights.
+- **Whether `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` also unblocks `$env` in the
+  HTTP node expression** that reads the Deepgram key was not confirmed.
+
+## Guardrails
+
+The model's own confidence score is self-reported, so it is not treated as
+evidence. Between the model and the CRM, `Validate Extraction` checks the
+extraction against the transcript:
+
+| Check | Rule | On failure |
+| --- | --- | --- |
+| Shape | Required fields exist with the right types | Human review |
+| Quotes | `verbatim_quote` must be an exact substring of the transcript | Quote stripped, flagged |
+| Competitors | The name must appear in the transcript as whole words (`Clari` is not grounded by `clarify`) | Quarantined, human review |
+| Rep commitments | At least half the content words must appear in the transcript, compared as whole words with common endings removed | Quarantined, human review |
+| Numbers | Every number in a rep commitment must appear in the transcript | Quarantined, human review |
+| Due dates | A `due` value must be made of words from the transcript | Due date stripped, flagged |
+| Pipeline health | No chunk returned unparseable output; the record is not empty | Human review |
+
+A record reaches the CRM adapter only if every hard check passes **and**
+confidence clears `MIN_CONFIDENCE`. The gate fails closed, and a test asserts
+that the review branch cannot reach `CRM Write`.
+
+The commitment check is a heuristic. It catches invented commitments; it does not
+prove a paraphrase is faithful, and it does not check that the words were spoken
+by the rep rather than the prospect. A number written as digits when the speaker
+said it in words (`20` for "twenty") is sent to review rather than passed. Quarantined items stay on the record under
+`_quarantined` so a reviewer can see what was held back and why.
+
+Inputs are constrained too: `meeting_id` and `audio_ref` are interpolated into
+the ffmpeg command line, so shell metacharacters are stripped or rejected at
+ingest.
+
+## Evaluation
+
+`evals/cases.json` holds five short synthetic transcripts (fictional companies,
+written by hand) with the expected rep commitments, competitors and next steps
+for each. `npm run eval` scores a file of model outputs against them and runs
+each output through the shipped reducer and validator:
+
+- precision and recall for rep commitments (token-overlap match, rule documented
+  in `scripts/eval.mjs`) and competitors
+- the share of quotes that are exact transcript substrings
+- how many records the validator would send to review
+
+Two sample output files are included, both written by hand: `good.json`, and
+`flawed.json` with an invented commitment, a missed commitment, an invented
+competitor and a fabricated quote. **These are offline fixtures. No live model
+run is recorded in this repo**, so the numbers show that the scorer and the
+validator behave as intended, not how any model performs. The flawed sample
+also shows the validator's blind spot: it holds the two inventions, but a
+missed commitment lowers recall without holding anything.
+
+To score a real run, save one extraction per case id in the same file shape
+and pass the path to `node scripts/eval.mjs`.
+
+## Known limitations
+
+- **API keys still pass through execution data once.** `Runtime Config` no
+  longer holds keys. Each request-builder node reads its key from the
+  environment and puts it in `_req.headers` for the HTTP node that follows, and
+  the Deepgram key is read in the HTTP node's own header expression. A test
+  asserts no key appears anywhere else. That one builder output is still saved
+  with the execution; n8n credentials would remove it and are the next change.
+- **Human review is a hand-off, not a queue.** A held record is POSTed to
+  `REVIEW_WEBHOOK_URL` if set; otherwise the run stops with the record in the
+  execution data. There is no approve-and-resume step: a reviewer who accepts
+  the record has to write it to the CRM themselves.
+- **Only HubSpot associates the call to existing records**, and only when the
+  caller supplies them as `crm_refs` on the ingest contract. Nothing looks up a
+  contact or deal from the transcript. The other adapters create a standalone
+  record.
+- **Direction and duration are never guessed.** They are written only when the
+  ingest contract carries `direction` and `duration_sec`. Zoho makes both
+  mandatory, so the Zoho adapter stops with an error without them.
+- **No retry or idempotency.** Re-running a recording creates a second record.
 
 ## Relationship to the monday.com CRM Audit project
 
@@ -39,27 +152,69 @@ monday's native automation engine cannot do."
 
 ## Files
 
-- `workflows/call-recording-to-crm.json` — the n8n workflow
-- `docs/spec.md` — full build spec
-- `docs/whisper_service.py` — local FastAPI transcription microservice
+- `workflows/call-recording-to-crm.json` — the n8n workflow (built from `src/nodes`)
+- `src/nodes/*.js` — the code for each Code node, one file per node
+- `scripts/build-workflow.mjs` — injects `src/nodes` into the workflow
+- `test/` — node tests, workflow wiring tests, eval tests, and synthetic fixtures
+- `evals/` — synthetic transcripts with expected output, and two sample output files
+- `scripts/eval.mjs` — offline scorer (`npm run eval`)
+- `test-support/harness.mjs` — runs Code-node source outside n8n
+- `services/whisper_service.py` — local FastAPI transcription microservice
   (faster-whisper, dual-channel-aware, optional pyannote diarization fallback)
+- `services/pathguard.py` — confines the service to its work directory
+- `docs/spec.md` — full build spec
 
 ## Setup
 
-Requires n8n. Set whichever of these apply:
+Requires n8n. On n8n 2.x three defaults block this workflow (per the
+[2.0 breaking changes](https://docs.n8n.io/2-0-breaking-changes/)) and must be
+changed on the instance:
+
+```
+N8N_BLOCK_ENV_ACCESS_IN_NODE=false       # Code nodes read keys from $env; if blocked, every provider silently falls back to local
+NODES_EXCLUDE="[]"                       # Execute Command and Local File Trigger are disabled by default
+N8N_RESTRICT_FILE_ACCESS_TO=/data/work   # Read/Write Files is confined to ~/.n8n-files by default (cloud STT path)
+```
+
+Then set whichever of these apply:
 
 ```
 OPENAI_API_KEY / ANTHROPIC_API_KEY       # cloud LLM (optional — falls back to Ollama)
+OPENAI_MODEL / ANTHROPIC_MODEL           # model ids; the defaults in Runtime Config may be out of date
 OLLAMA_URL / OLLAMA_MODEL                # local LLM fallback
-DEEPGRAM_API_KEY                         # cloud STT with diarization (optional)
-MIN_CONFIDENCE                           # confidence gate threshold, default in workflow
+DEEPGRAM_API_KEY                         # cloud STT (optional — falls back to the local service)
+CRM_PROVIDER                             # zoho | hubspot | salesforce | pipedrive | monday | webhook
+CRM_TOKEN / CRM_BASE_URL / CRM_WEBHOOK_URL
+MIN_CONFIDENCE                           # gate threshold, default 0.6
+REVIEW_WEBHOOK_URL                       # where held records are POSTed (optional)
 ```
 
-Local transcription service:
+Optional fields on the item that enters `Ingest Contract` (from a webhook or
+the manual trigger), used only when supplied:
+
+```
+direction      inbound | outbound          # written to HubSpot/Zoho; never guessed
+duration_sec   number                      # written to HubSpot/Zoho
+crm_refs       { contact_id, deal_id, company_id }   # HubSpot: the call is created associated to these records
+```
+
+Local transcription service (binds to 127.0.0.1 and reads only from
+`WHISPER_WORK_DIR`, default `/data/work`):
 
 ```
 pip install fastapi uvicorn faster-whisper soundfile numpy
-python docs/whisper_service.py
+python services/whisper_service.py
+```
+
+## Development
+
+Requires Node.js 22 or newer. No dependencies to install.
+
+```
+npm test          # node logic, validator, adapters, workflow wiring
+npm run build     # rebuild the workflow after editing src/nodes
+npm run eval      # score the sample outputs against the synthetic eval set
+python -m unittest discover -s tests   # transcription service path guard
 ```
 
 ## Kill criterion

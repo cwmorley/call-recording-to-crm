@@ -1,0 +1,10 @@
+{
+  "meeting_id": "demo-001",
+  "segments": [
+    { "speaker": "REP", "start": 0, "end": 6, "text": "Thanks for joining, Dana. How is the rollout at Northwind Logistics going?" },
+    { "speaker": "PROSPECT", "start": 6, "end": 18, "text": "Honestly our reps spend twenty minutes after every call typing notes, and half of them never do it." },
+    { "speaker": "PROSPECT", "start": 18, "end": 27, "text": "We looked at Gong last quarter but the per-seat price was too high for a team of twelve." },
+    { "speaker": "REP", "start": 27, "end": 38, "text": "Understood. I will send the pricing sheet by Friday and set up a security review with our solutions engineer." },
+    { "speaker": "PROSPECT", "start": 38, "end": 44, "text": "Great. We need a decision before the end of the quarter." }
+  ]
+}
