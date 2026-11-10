@@ -24,6 +24,8 @@ jobs:
         run: git diff --exit-code -- workflows/call-recording-to-crm.json
       - name: Node code and workflow wiring tests
         run: node --test
+      - name: Offline evaluation on the recorded sample outputs
+        run: npm run eval
 
   service:
     runs-on: ubuntu-latest

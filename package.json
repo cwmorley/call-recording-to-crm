@@ -6,7 +6,8 @@
   "description": "n8n workflow that turns a call recording into a validated, structured CRM record.",
   "scripts": {
     "build": "node scripts/build-workflow.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "eval": "node scripts/eval.mjs evals/outputs/good.json && node scripts/eval.mjs evals/outputs/flawed.json"
   },
   "engines": { "node": ">=22" }
 }

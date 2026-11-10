@@ -77,6 +77,29 @@ Inputs are constrained too: `meeting_id` and `audio_ref` are interpolated into
 the ffmpeg command line, so shell metacharacters are stripped or rejected at
 ingest.
 
+## Evaluation
+
+`evals/cases.json` holds five short synthetic transcripts (fictional companies,
+written by hand) with the expected rep commitments, competitors and next steps
+for each. `npm run eval` scores a file of model outputs against them and runs
+each output through the shipped reducer and validator:
+
+- precision and recall for rep commitments (token-overlap match, rule documented
+  in `scripts/eval.mjs`) and competitors
+- the share of quotes that are exact transcript substrings
+- how many records the validator would send to review
+
+Two sample output files are included, both written by hand: `good.json`, and
+`flawed.json` with an invented commitment, a missed commitment, an invented
+competitor and a fabricated quote. **These are offline fixtures. No live model
+run is recorded in this repo**, so the numbers show that the scorer and the
+validator behave as intended, not how any model performs. The flawed sample
+also shows the validator's blind spot: it holds the two inventions, but a
+missed commitment lowers recall without holding anything.
+
+To score a real run, save one extraction per case id in the same file shape
+and pass the path to `node scripts/eval.mjs`.
+
 ## Known limitations
 
 - **API keys still pass through execution data once.** `Runtime Config` no
@@ -112,7 +135,9 @@ monday's native automation engine cannot do."
 - `workflows/call-recording-to-crm.json` — the n8n workflow (built from `src/nodes`)
 - `src/nodes/*.js` — the code for each Code node, one file per node
 - `scripts/build-workflow.mjs` — injects `src/nodes` into the workflow
-- `test/` — node tests, workflow wiring tests, and synthetic fixtures
+- `test/` — node tests, workflow wiring tests, eval tests, and synthetic fixtures
+- `evals/` — synthetic transcripts with expected output, and two sample output files
+- `scripts/eval.mjs` — offline scorer (`npm run eval`)
 - `test-support/harness.mjs` — runs Code-node source outside n8n
 - `services/whisper_service.py` — local FastAPI transcription microservice
   (faster-whisper, dual-channel-aware, optional pyannote diarization fallback)
@@ -159,6 +184,7 @@ Requires Node.js 22 or newer. No dependencies to install.
 ```
 npm test          # node logic, validator, adapters, workflow wiring
 npm run build     # rebuild the workflow after editing src/nodes
+npm run eval      # score the sample outputs against the synthetic eval set
 python -m unittest discover -s tests   # transcription service path guard
 ```
 
