@@ -84,9 +84,13 @@ ingest.
   in n8n execution data. Moving them to n8n credentials is the next change.
 - **`Human Review Queue` is a placeholder.** Held records stop there; nothing
   notifies a reviewer yet.
-- **CRM writes are not associated to a contact or deal.** The HubSpot and Zoho
-  adapters create a standalone call record. Direction and duration are fixed
-  values.
+- **Only HubSpot associates the call to existing records**, and only when the
+  caller supplies them as `crm_refs` on the ingest contract. Nothing looks up a
+  contact or deal from the transcript. The other adapters create a standalone
+  record.
+- **Direction and duration are never guessed.** They are written only when the
+  ingest contract carries `direction` and `duration_sec`. Zoho makes both
+  mandatory, so the Zoho adapter stops with an error without them.
 - **No retry or idempotency.** Re-running a recording creates a second record.
 
 ## Relationship to the monday.com CRM Audit project

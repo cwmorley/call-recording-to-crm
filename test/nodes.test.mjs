@@ -297,8 +297,12 @@ test('validator: confidence must be a number, not something that coerces to one'
 });
 
 // --- CRM adapters ---------------------------------------------------------
-const crm = (over) => runNode('build-crm-request', {
-  input: [validate(reduce([good], over))], nodes: { 'Runtime Config': runtime(over) } })[0]._req;
+// `ingest` is what the Ingest Contract node emitted for this call.
+const ingested = (input = {}) => runNode('ingest-contract', {
+  input: [{ meeting_id: 'demo-001', start_time: '2026-09-05T15:00:00.000Z', ...input }] })[0];
+const crm = (over, ingest = {}, record = good) => runNode('build-crm-request', {
+  input: [validate(reduce([record], over))],
+  nodes: { 'Runtime Config': runtime(over), 'Ingest Contract': ingested(ingest) } })[0]._req;
 
 test('CRM adapter: HubSpot call engagement payload', () => {
   const req = crm({ crm_provider: 'hubspot' });
@@ -306,10 +310,48 @@ test('CRM adapter: HubSpot call engagement payload', () => {
   assert.equal(req.headers.Authorization, 'Bearer test-token');
   assert.match(req.body.properties.hs_call_body, /COMMITMENTS MADE BY REP/);
   assert.equal(req.body.properties.hs_timestamp, '2026-09-05T15:00:00.000Z');
+  assert.equal(req.body.properties.hs_call_status, 'COMPLETED');
+});
+
+test('CRM adapter: HubSpot without refs, direction or duration sends none of them', () => {
+  const { body } = crm({ crm_provider: 'hubspot' });
+  assert.equal('associations' in body, false);
+  assert.equal('hs_call_direction' in body.properties, false);
+  assert.equal('hs_call_duration' in body.properties, false);
+});
+
+test('CRM adapter: HubSpot associates the call to the contact, company and deal it was given', () => {
+  const { body } = crm({ crm_provider: 'hubspot' },
+    { crm_refs: { contact_id: '501', company_id: '77', deal_id: '9001' }, direction: 'outbound', duration_sec: 1800 });
+  const assoc = (id, typeId) => ({ to: { id },
+    types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: typeId }] });
+  assert.deepEqual(body.associations, [assoc('501', 194), assoc('77', 182), assoc('9001', 206)]);
+  assert.equal(body.properties.hs_call_direction, 'OUTBOUND');
+  assert.equal(body.properties.hs_call_duration, 1800000);
+  assert.deepEqual(crm({ crm_provider: 'hubspot' }, { crm_refs: { deal_id: '9001' } }).body.associations,
+    [assoc('9001', 206)]);
+});
+
+test('CRM adapter: Zoho takes direction and duration from the call, and refuses to invent them', () => {
+  const { body } = crm({ crm_provider: 'zoho' }, { direction: 'outbound', duration_sec: 1800 });
+  assert.equal(body.data[0].Call_Type, 'Outbound');
+  assert.equal(body.data[0].Call_Duration, '00:30');
+  assert.throws(() => crm({ crm_provider: 'zoho' }, { duration_sec: 1800 }), /direction/);
+  assert.throws(() => crm({ crm_provider: 'zoho' }, { direction: 'inbound' }), /duration_sec/);
+});
+
+test('CRM adapter: monday item name cannot break out of the GraphQL string', () => {
+  const hostile = { ...good, account: { name: 'Acme\\", column_values: "{}") { id } } #' } };
+  const record = { ...validate(reduce([hostile])), _monday: { board_id: '1', group_id: 'g', column_values: {},
+    item_name: 'Call - ' + hostile.account.name } };
+  const [out] = runNode('build-crm-request', { input: [record],
+    nodes: { 'Runtime Config': runtime({ crm_provider: 'monday' }), 'Ingest Contract': ingested() } });
+  const literal = /item_name: ("(?:[^"\\]|\\.)*")/.exec(out._req.body.query)[1];
+  assert.equal(JSON.parse(literal), record._monday.item_name);
 });
 
 test('CRM adapter: Zoho and Salesforce targets', () => {
-  assert.match(crm({ crm_provider: 'zoho' }).url, /zohoapis\.com\/crm\/v5\/Calls$/);
+  assert.match(crm({ crm_provider: 'zoho' }, { direction: 'inbound', duration_sec: 600 }).url, /zohoapis\.com\/crm\/v5\/Calls$/);
   const sf = crm({ crm_provider: 'salesforce', crm_base: 'https://acme.my.salesforce.com' });
   assert.equal(sf.url, 'https://acme.my.salesforce.com/services/data/v60.0/sobjects/Task');
   assert.equal(sf.body.TaskSubtype, 'Call');
