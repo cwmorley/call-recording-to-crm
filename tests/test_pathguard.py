@@ -42,6 +42,10 @@ class PathGuardTest(unittest.TestCase):
         with self.assertRaises(PathNotAllowed):
             resolve_in_workdir(str(link), self.work)
 
+    def test_unresolvable_path_is_rejected_not_raised_as_a_server_error(self) -> None:
+        with self.assertRaises(PathNotAllowed):
+            resolve_in_workdir("abc\x00.wav", self.work)
+
 
 if __name__ == "__main__":
     unittest.main()

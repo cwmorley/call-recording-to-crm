@@ -19,7 +19,10 @@ def resolve_in_workdir(requested: str, work_dir: str | Path) -> Path:
     candidate = Path(requested)
     if not candidate.is_absolute():
         candidate = base / candidate
-    resolved = candidate.resolve()
+    try:
+        resolved = candidate.resolve()
+    except (OSError, ValueError) as error:  # e.g. an embedded NUL byte
+        raise PathNotAllowed(f"path cannot be resolved: {requested!r}") from error
     if resolved != base and base not in resolved.parents:
         raise PathNotAllowed(f"path is outside the work directory: {requested}")
     return resolved
