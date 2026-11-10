@@ -11,9 +11,11 @@ No per-seat SaaS, no per-call API cost, no third party touching customer
 conversations. Provider-agnostic by design:
 
 - **AI provider**: if `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set, routes to
-  cloud; otherwise falls back to local Ollama. Same for transcription — Deepgram
-  or OpenAI Whisper API if a key is present, otherwise a local faster-whisper
-  service (`services/whisper_service.py`).
+  cloud; otherwise falls back to local Ollama. Transcription uses Deepgram if
+  `DEEPGRAM_API_KEY` is set, otherwise a local faster-whisper service
+  (`services/whisper_service.py`). OpenAI transcription is not supported: the
+  endpoint needs a multipart upload with a `model` field, and the earlier
+  attempt posted raw bytes, so it was removed rather than left broken.
 - **CRM**: adapter pattern with cases for Zoho, HubSpot, Salesforce, Pipedrive,
   monday.com, and a generic webhook default for anything else.
 

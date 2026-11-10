@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===== RUNTIME CONFIG - the only node you edit =====\n// Providers auto-select on key presence: keys -> cloud, no keys -> local.\n// $env access can be disabled in some n8n installs; hardcode below if so.\nconst env = (k) => { try { return $env[k] || ''; } catch (e) { return ''; } };\n\nconst CFG = {\n  openai_key:    env('OPENAI_API_KEY'),\n  anthropic_key: env('ANTHROPIC_API_KEY'),\n  deepgram_key:  env('DEEPGRAM_API_KEY'),\n  ollama_url:    env('OLLAMA_URL')  || 'http://host.docker.internal:11434',\n  whisper_url:   env('WHISPER_URL') || 'http://host.docker.internal:8000',\n  openai_model:    env('OPENAI_MODEL')    || 'gpt-4o-mini',\n  anthropic_model: env('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514',\n  ollama_model:    env('OLLAMA_MODEL')    || 'qwen2.5:7b',\n  crm_provider:  (env('CRM_PROVIDER') || 'webhook').toLowerCase(),\n  crm_webhook:   env('CRM_WEBHOOK_URL'),\n  crm_token:     env('CRM_TOKEN'),\n  crm_base:      env('CRM_BASE_URL'),\n  monday_board:  env('MONDAY_BOARD_ID'),\n  monday_group:  env('MONDAY_GROUP_ID') || '',\n  min_conf:      Number(env('MIN_CONFIDENCE') || 0.6)\n};\n\n// --- provider election -------------------------------------------------\nlet llm = 'ollama';\nif (CFG.openai_key) llm = 'openai';\nelse if (CFG.anthropic_key) llm = 'anthropic';\n\nlet stt = 'local';\nif (CFG.deepgram_key) stt = 'deepgram';      // preferred cloud: supports diarization\nelse if (CFG.openai_key) stt = 'openai';     // no diarization available\n\nconst ctx = $input.first().json;\nreturn [{ json: { ...ctx, _cfg: { ...CFG, llm_provider: llm, stt_provider: stt },\n  _routing: { llm, stt, crm: CFG.crm_provider,\n    note: `LLM=${llm} STT=${stt} CRM=${CFG.crm_provider}` } }}];"
+        "jsCode": "// ===== RUNTIME CONFIG - the only node you edit =====\n// Providers auto-select on key presence: keys -> cloud, no keys -> local.\n// $env access can be disabled in some n8n installs; hardcode below if so.\nconst env = (k) => { try { return $env[k] || ''; } catch (e) { return ''; } };\n\nconst CFG = {\n  openai_key:    env('OPENAI_API_KEY'),\n  anthropic_key: env('ANTHROPIC_API_KEY'),\n  deepgram_key:  env('DEEPGRAM_API_KEY'),\n  ollama_url:    env('OLLAMA_URL')  || 'http://host.docker.internal:11434',\n  whisper_url:   env('WHISPER_URL') || 'http://host.docker.internal:8000',\n  openai_model:    env('OPENAI_MODEL')    || 'gpt-4o-mini',\n  anthropic_model: env('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514',\n  ollama_model:    env('OLLAMA_MODEL')    || 'qwen2.5:7b',\n  crm_provider:  (env('CRM_PROVIDER') || 'webhook').toLowerCase(),\n  crm_webhook:   env('CRM_WEBHOOK_URL'),\n  crm_token:     env('CRM_TOKEN'),\n  crm_base:      env('CRM_BASE_URL'),\n  monday_board:  env('MONDAY_BOARD_ID'),\n  monday_group:  env('MONDAY_GROUP_ID') || '',\n  min_conf:      Number(env('MIN_CONFIDENCE') || 0.6)\n};\n\n// --- provider election -------------------------------------------------\nlet llm = 'ollama';\nif (CFG.openai_key) llm = 'openai';\nelse if (CFG.anthropic_key) llm = 'anthropic';\n\nlet stt = 'local';\nif (CFG.deepgram_key) stt = 'deepgram';      // cloud: diarization and per-channel transcripts\n\nconst ctx = $input.first().json;\nreturn [{ json: { ...ctx, _cfg: { ...CFG, llm_provider: llm, stt_provider: stt },\n  _routing: { llm, stt, crm: CFG.crm_provider,\n    note: `LLM=${llm} STT=${stt} CRM=${CFG.crm_provider}` } }}];"
       },
       "id": "n0000000-0000-4000-8000-000000000004",
       "name": "Runtime Config",
@@ -73,7 +73,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build STT request. Cloud STT needs the audio bytes; local takes a path.\nconst c = $json._cfg;\nconst wav = '/data/work/' + $json.meeting_id + '.wav';\n\nif (c.stt_provider === 'deepgram') {\n  return [{ json: { ...$json, _stt: { mode: 'binary', file: wav,\n    url: 'https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&diarize=true&punctuate=true',\n    headers: { Authorization: 'Token ' + c.deepgram_key, 'Content-Type': 'audio/wav' } }}}];\n}\nif (c.stt_provider === 'openai') {\n  return [{ json: { ...$json, _stt: { mode: 'multipart', file: wav,\n    url: 'https://api.openai.com/v1/audio/transcriptions',\n    headers: { Authorization: 'Bearer ' + c.openai_key } }}}];\n}\nreturn [{ json: { ...$json, _stt: { mode: 'json' },\n  _req: { url: c.whisper_url + '/transcribe', headers: { 'Content-Type': 'application/json' },\n    body: { path: wav, meeting_id: $json.meeting_id, channels: $json.channels,\n            diarize: $json.channels !== 'dual' } } }}];"
+        "jsCode": "// Build STT request. Cloud STT needs the audio bytes; local takes a path.\n// The previous node (Execute Command) outputs only { exitCode, stderr, stdout },\n// so the call context is read from Runtime Config, not from $json.\nconst ctx = $('Runtime Config').first().json;\nconst c = ctx._cfg;\nconst wav = '/data/work/' + ctx.meeting_id + '.wav';\nconst dual = ctx.channels === 'dual';\n\nif (c.stt_provider === 'deepgram') {\n  // dual: one transcript per channel (exact speakers). mono: diarization.\n  return [{ json: { _stt: { mode: 'binary', file: wav,\n    url: 'https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&punctuate=true&' +\n         (dual ? 'multichannel=true' : 'diarize=true'),\n    headers: { Authorization: 'Token ' + c.deepgram_key, 'Content-Type': 'audio/wav' } } } }];\n}\nreturn [{ json: { _stt: { mode: 'json' },\n  _req: { url: c.whisper_url + '/transcribe', headers: { 'Content-Type': 'application/json' },\n    body: { path: wav, meeting_id: ctx.meeting_id, channels: ctx.channels, diarize: !dual } } } }];"
       },
       "id": "n0000000-0000-4000-8000-000000000006",
       "name": "Build STT Request",
@@ -177,7 +177,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Flatten every provider's response into ONE shape:\n// { meeting_id, segments: [{speaker,start,end,text}] }\nconst r = $input.first().json;\nconst ctx = $('Runtime Config').first().json;\nlet segments = [];\n\nif (Array.isArray(r.segments) && r.segments.length && r.segments[0].speaker !== undefined) {\n  segments = r.segments;                                   // local service - already normalized\n} else if (r.results?.channels) {                          // Deepgram\n  const alt = r.results.channels[0].alternatives[0];\n  const words = alt.words || [];\n  if (words.length && words[0].speaker !== undefined) {\n    let cur = null;\n    for (const w of words) {\n      const spk = 'SPEAKER_' + w.speaker;\n      if (!cur || cur.speaker !== spk) {\n        if (cur) segments.push(cur);\n        cur = { speaker: spk, start: w.start, end: w.end, text: '' };\n      }\n      cur.text += (cur.text ? ' ' : '') + (w.punctuated_word || w.word);\n      cur.end = w.end;\n    }\n    if (cur) segments.push(cur);\n  } else {\n    segments = [{ speaker: 'SPEAKER', start: 0, end: 0, text: alt.transcript || '' }];\n  }\n} else if (Array.isArray(r.segments)) {                    // OpenAI verbose_json - NO diarization\n  segments = r.segments.map(s => ({ speaker: 'SPEAKER', start: s.start, end: s.end,\n                                    text: (s.text || '').trim() }));\n} else if (r.text) {\n  segments = [{ speaker: 'SPEAKER', start: 0, end: 0, text: r.text }];\n}\n\nif (!segments.length) throw new Error('Transcription returned no segments.');\nreturn [{ json: { meeting_id: ctx.meeting_id, segments } }];"
+        "jsCode": "// Flatten every provider's response into ONE shape:\n// { meeting_id, segments: [{speaker,start,end,text}] }\nconst r = $input.first().json;\nconst ctx = $('Runtime Config').first().json;\nlet segments = [];\n\nif (Array.isArray(r.segments)) {\n  segments = r.segments;                                   // local service - already normalized\n} else if (r.results?.channels) {                          // Deepgram\n  const channels = r.results.channels;\n  // multichannel: one entry per audio channel, labelled like the local service\n  // (left = REP, right = PROSPECT). Otherwise the diarized speaker index.\n  const LEGS = ['REP', 'PROSPECT'];\n  const words = channels.flatMap((ch, idx) => (ch.alternatives?.[0]?.words || []).map((w) => ({ ...w,\n    _spk: channels.length > 1 ? (LEGS[idx] || 'CHANNEL_' + idx)\n        : w.speaker !== undefined ? 'SPEAKER_' + w.speaker : 'SPEAKER' })));\n  if (channels.length > 1) words.sort((a, b) => a.start - b.start);\n  let cur = null;\n  for (const w of words) {\n    if (!cur || cur.speaker !== w._spk) {\n      if (cur) segments.push(cur);\n      cur = { speaker: w._spk, start: w.start, end: w.end, text: '' };\n    }\n    cur.text += (cur.text ? ' ' : '') + (w.punctuated_word || w.word);\n    cur.end = w.end;\n  }\n  if (cur) segments.push(cur);\n  if (!segments.length) {\n    const text = channels.map((ch) => ch.alternatives?.[0]?.transcript || '').join(' ').trim();\n    if (text) segments = [{ speaker: 'SPEAKER', start: 0, end: 0, text }];\n  }\n}\n\nif (!segments.length) throw new Error('Transcription returned no segments.');\nreturn [{ json: { meeting_id: ctx.meeting_id, segments } }];"
       },
       "id": "n0000000-0000-4000-8000-000000000011",
       "name": "Normalize Transcript",
@@ -359,7 +359,7 @@
     },
     {
       "parameters": {
-        "content": "## EDIT ONE NODE: Runtime Config\\n\\n**Providers auto-elect on key presence.**\\n\\nNo keys at all -> Ollama + local Whisper.\\nOPENAI_API_KEY -> GPT.\\nANTHROPIC_API_KEY -> Claude.\\nDEEPGRAM_API_KEY -> cloud STT *with*\\ndiarization.\\n\\nSo the template runs for a stranger with\\none API key, and runs fully private with\\nzero keys. Same workflow, same canvas.\\n\\nIf your n8n blocks `$env` in Code nodes,\\nhardcode values in the CFG object.",
+        "content": "## EDIT ONE NODE: Runtime Config\n\n**Providers auto-elect on key presence.**\n\nNo keys at all -> Ollama + local Whisper.\nOPENAI_API_KEY -> GPT.\nANTHROPIC_API_KEY -> Claude.\nDEEPGRAM_API_KEY -> cloud STT *with*\ndiarization.\n\nSo the template runs for a stranger with\none API key, and runs fully private with\nzero keys. Same workflow, same canvas.\n\nIf your n8n blocks `$env` in Code nodes,\nhardcode values in the CFG object.",
         "height": 400,
         "width": 320,
         "color": 4
@@ -375,7 +375,7 @@
     },
     {
       "parameters": {
-        "content": "## STT split\\n\\nOnly place the graph forks on provider,\\nbecause cloud STT needs the audio *bytes*\\nand the local service takes a *path*.\\n\\n**Diarization warning:** OpenAI's audio API\\nreturns NO speaker labels. Deepgram does\\n(`diarize=true`). If channels='dual' the\\ndialer already separated the legs and none\\nof this matters.\\n\\n**25MB cap** on OpenAI audio - long calls\\nneed splitting first.",
+        "content": "## STT split\n\nOnly place the graph forks on provider,\nbecause cloud STT needs the audio *bytes*\nand the local service takes a *path*.\n\nCloud = Deepgram. Mono audio is diarized\n(`diarize=true`); dual-channel audio is\ntranscribed per channel\n(`multichannel=true`), left = REP,\nright = PROSPECT.\n\nNo DEEPGRAM_API_KEY -> local service.",
         "height": 420,
         "width": 330,
         "color": 5
@@ -391,7 +391,7 @@
     },
     {
       "parameters": {
-        "content": "## Everything below is provider-blind\\n\\n`Normalize Transcript` and `Normalize LLM\\nResponse` flatten every vendor's shape into\\none contract. Chunking, reduction, gating\\nand CRM mapping never learn which provider\\nran.\\n\\nThat is what makes this swappable rather\\nthan three workflows pretending to be one.",
+        "content": "## Everything below is provider-blind\n\n`Normalize Transcript` and `Normalize LLM\nResponse` flatten every vendor's shape into\none contract. Chunking, reduction, gating\nand CRM mapping never learn which provider\nran.\n\nThat is what makes this swappable rather\nthan three workflows pretending to be one.",
         "height": 300,
         "width": 340,
         "color": 3
@@ -407,7 +407,7 @@
     },
     {
       "parameters": {
-        "content": "## Confidence gate\\n\\nScore is discounted by chunk parse-success\\nrate, so silent JSON failures drag it down\\ninstead of hiding inside an average.\\n\\nBelow MIN_CONFIDENCE (default 0.6) routes\\nto human review. Never let unreviewed model\\noutput write to a live CRM - that is how\\nthese projects lose trust permanently.",
+        "content": "## Confidence gate\n\nScore is discounted by chunk parse-success\nrate, so silent JSON failures drag it down\ninstead of hiding inside an average.\n\nBelow MIN_CONFIDENCE (default 0.6) routes\nto human review. Never let unreviewed model\noutput write to a live CRM - that is how\nthese projects lose trust permanently.",
         "height": 290,
         "width": 320,
         "color": 2
@@ -423,7 +423,7 @@
     },
     {
       "parameters": {
-        "content": "## CRM-agnostic\\n\\nCanonical record -> adapter -> provider.\\n\\nDefault `webhook` POSTs the canonical JSON\\nanywhere: works with ANY CRM, including ones\\nnot implemented, and needs no credentials -\\npoint it at webhook.site to demo.\\n\\nzoho | hubspot | salesforce | pipedrive are\\nbuilt in. Adding one is a new `case` in\\nBuild CRM Request. Nothing upstream moves.\\n\\nZoho: set CRM_BASE_URL for your region\\n(.com / .eu / .in / .com.au).",
+        "content": "## CRM-agnostic\n\nCanonical record -> adapter -> provider.\n\nDefault `webhook` POSTs the canonical JSON\nanywhere: works with ANY CRM, including ones\nnot implemented, and needs no credentials -\npoint it at webhook.site to demo.\n\nzoho | hubspot | salesforce | pipedrive are\nbuilt in. Adding one is a new `case` in\nBuild CRM Request. Nothing upstream moves.\n\nZoho: set CRM_BASE_URL for your region\n(.com / .eu / .in / .com.au).",
         "height": 420,
         "width": 330,
         "color": 6
@@ -486,7 +486,7 @@
     },
     {
       "parameters": {
-        "content": "## monday.com\\n\\nmonday has **no standard fields** - a board is\\nwhatever columns the customer made. You cannot\\nhardcode a mapping, so we introspect the board\\nand match canonical fields to real column ids.\\n\\n`mapping_report.unmapped` is the money:\\nfields the AI extracted that the board has\\nnowhere to store. That list IS a consulting\\nfinding - hand it to them.\\n\\nSet MONDAY_BOARD_ID + CRM_TOKEN.\\nOther CRMs skip these three nodes.",
+        "content": "## monday.com\n\nmonday has **no standard fields** - a board is\nwhatever columns the customer made. You cannot\nhardcode a mapping, so we introspect the board\nand match canonical fields to real column ids.\n\n`mapping_report.unmapped` is the money:\nfields the AI extracted that the board has\nnowhere to store. That list IS a consulting\nfinding - hand it to them.\n\nSet MONDAY_BOARD_ID + CRM_TOKEN.\nOther CRMs skip these three nodes.",
         "height": 360,
         "width": 330,
         "color": 7

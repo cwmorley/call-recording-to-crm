@@ -84,6 +84,36 @@ test('runtime config: keys select cloud providers', () => {
   assert.equal(out._routing.crm, 'hubspot');
 });
 
+test('runtime config: an OpenAI key selects the OpenAI model but not OpenAI transcription', () => {
+  const [out] = runNode('runtime-config', { input: [{}], env: { OPENAI_API_KEY: 'k' } });
+  assert.equal(out._routing.llm, 'openai');
+  assert.equal(out._routing.stt, 'local');
+});
+
+// --- transcription request --------------------------------------------------
+// Execute Command replaces the item with { exitCode, stderr, stdout }, so the
+// builder must read the call context from Runtime Config, not from its input.
+const stt = (over, ctx = {}) => runNode('build-stt-request', {
+  input: [{ exitCode: 0, stderr: '', stdout: 'NORMALIZED' }],
+  nodes: { 'Runtime Config': { ...runtime(over), channels: 'mono', ...ctx } } })[0];
+
+test('STT request: built from Runtime Config, because ffmpeg output carries no call context', () => {
+  const out = stt({ whisper_url: 'http://whisper.test' });
+  assert.equal(out._stt.mode, 'json');
+  assert.equal(out._req.url, 'http://whisper.test/transcribe');
+  assert.deepEqual(out._req.body, { path: '/data/work/demo-001.wav', meeting_id: 'demo-001', channels: 'mono', diarize: true });
+});
+
+test('STT request: Deepgram diarizes mono audio and separates channels on dual audio', () => {
+  const mono = stt({ stt_provider: 'deepgram' });
+  assert.equal(mono._stt.mode, 'binary');
+  assert.match(mono._stt.url, /diarize=true/);
+  assert.doesNotMatch(mono._stt.url, /multichannel/);
+  const dual = stt({ stt_provider: 'deepgram' }, { channels: 'dual' });
+  assert.match(dual._stt.url, /multichannel=true/);
+  assert.doesNotMatch(dual._stt.url, /diarize/);
+});
+
 // --- transcript -----------------------------------------------------------
 test('normalize transcript: Deepgram words are grouped into speaker turns', () => {
   const words = [
@@ -95,6 +125,15 @@ test('normalize transcript: Deepgram words are grouped into speaker turns', () =
     nodes: { 'Runtime Config': runtime() } });
   assert.deepEqual(out.segments.map((s) => [s.speaker, s.text]),
     [['SPEAKER_0', 'Hello there.'], ['SPEAKER_1', 'Hi.']]);
+});
+
+test('normalize transcript: Deepgram multichannel keeps both legs, in time order', () => {
+  const ch = (words) => ({ alternatives: [{ words: words.map(([word, start]) => ({ word, start, end: start + 0.3 })) }] });
+  const [out] = runNode('normalize-transcript', {
+    input: [{ results: { channels: [ch([['hello', 0], ['dana', 0.4], ['great', 3]]), ch([['hi', 1], ['there', 1.4]])] } }],
+    nodes: { 'Runtime Config': runtime() } });
+  assert.deepEqual(out.segments.map((s) => [s.speaker, s.text]),
+    [['REP', 'hello dana'], ['PROSPECT', 'hi there'], ['REP', 'great']]);
 });
 
 test('normalize transcript: an empty transcription stops the run', () => {

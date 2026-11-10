@@ -27,8 +27,7 @@ if (CFG.openai_key) llm = 'openai';
 else if (CFG.anthropic_key) llm = 'anthropic';
 
 let stt = 'local';
-if (CFG.deepgram_key) stt = 'deepgram';      // preferred cloud: supports diarization
-else if (CFG.openai_key) stt = 'openai';     // no diarization available
+if (CFG.deepgram_key) stt = 'deepgram';      // cloud: diarization and per-channel transcripts
 
 const ctx = $input.first().json;
 return [{ json: { ...ctx, _cfg: { ...CFG, llm_provider: llm, stt_provider: stt },

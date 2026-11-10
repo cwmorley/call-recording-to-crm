@@ -52,6 +52,17 @@ test('schema discovery runs only for monday; other providers go straight to the 
   assert.deepEqual(targets('Needs Schema Discovery?', 1), ['Build CRM Request']);
 });
 
+test('transcription: local posts a path, cloud posts the audio bytes, and nothing targets OpenAI audio', () => {
+  const node = (name) => committed.nodes.find((n) => n.name === name);
+  assert.deepEqual(targets('Local or Cloud STT?', 0), ['STT - Local Service']);
+  assert.deepEqual(targets('Local or Cloud STT?', 1), ['Read Audio Binary']);
+  assert.deepEqual(targets('Read Audio Binary'), ['STT - Cloud API']);
+  assert.equal(node('STT - Local Service').parameters.specifyBody, 'json');
+  assert.equal(node('STT - Cloud API').parameters.contentType, 'binaryData');
+  assert.equal(node('STT - Cloud API').parameters.inputDataFieldName, 'data');
+  assert.ok(!JSON.stringify(committed).includes('audio/transcriptions'));
+});
+
 test('no credentials are stored in the workflow file', () => {
   const text = JSON.stringify(committed);
   assert.ok(!/sk-[A-Za-z0-9]{20,}|Bearer [A-Za-z0-9_\-]{20,}|pat-[a-z0-9-]{20,}/.test(text));
