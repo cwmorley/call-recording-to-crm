@@ -35,6 +35,39 @@ test('ingest: channels is limited to mono or dual', () => {
   assert.equal(runNode('ingest-contract', { input: [{ channels: 'dual' }] })[0].channels, 'dual');
 });
 
+test('ingest: control characters in audio_ref are rejected', () => {
+  for (const path of ['/data/a\u0000.m4a', '/data/a\tb.m4a']) {
+    assert.throws(() => runNode('ingest-contract', { input: [{ path }] }), /not allowed/);
+  }
+});
+
+test('ingest: a signed recording URL is accepted (& and ; are inert inside double quotes)', () => {
+  const url = 'https://recordings.example.test/r/abc.mp3?sig=a1b2&expires=1767225600;v=1';
+  assert.equal(runNode('ingest-contract', { input: [{ audio_ref: url }] })[0].audio_ref, url);
+});
+
+test('ingest: start_time must be a real date and is normalised to ISO', () => {
+  assert.throws(() => runNode('ingest-contract', { input: [{ start_time: 'yesterday-ish' }] }), /start_time/);
+  const [out] = runNode('ingest-contract', { input: [{ start_time: '2026-09-05T09:00:00-06:00' }] });
+  assert.equal(out.start_time, '2026-09-05T15:00:00.000Z');
+});
+
+test('ingest: direction is inbound, outbound or unknown - never guessed', () => {
+  const dir = (direction) => runNode('ingest-contract', { input: [{ direction }] })[0].direction;
+  assert.equal(dir('Outbound'), 'outbound');
+  assert.equal(dir('inbound'), 'inbound');
+  assert.equal(dir(undefined), '');
+  assert.equal(dir('sideways'), '');
+});
+
+test('ingest: crm_refs keeps only well-formed record ids', () => {
+  const refs = (crm_refs) => runNode('ingest-contract', { input: [{ crm_refs }] })[0].crm_refs;
+  assert.deepEqual(refs({ contact_id: 501, deal_id: '9001', company_id: '77", "x": "y', other: 'x' }),
+    { contact_id: '501', deal_id: '9001' });
+  assert.deepEqual(refs(undefined), {});
+  assert.deepEqual(refs('501'), {});
+});
+
 // --- provider election ----------------------------------------------------
 test('runtime config: no keys means local model and local transcription', () => {
   const [out] = runNode('runtime-config', { input: [{ meeting_id: 'm' }], env: {} });
