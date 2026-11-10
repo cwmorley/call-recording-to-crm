@@ -55,8 +55,10 @@ extraction against the transcript:
 | --- | --- | --- |
 | Shape | Required fields exist with the right types | Human review |
 | Quotes | `verbatim_quote` must be an exact substring of the transcript | Quote stripped, flagged |
-| Competitors | The name must literally appear in the transcript | Quarantined, human review |
-| Rep commitments | At least half the content words must appear in the transcript | Quarantined, human review |
+| Competitors | The name must appear in the transcript as whole words (`Clari` is not grounded by `clarify`) | Quarantined, human review |
+| Rep commitments | At least half the content words must appear in the transcript, compared as whole words with common endings removed | Quarantined, human review |
+| Numbers | Every number in a rep commitment must appear in the transcript | Quarantined, human review |
+| Due dates | A `due` value must be made of words from the transcript | Due date stripped, flagged |
 | Pipeline health | No chunk returned unparseable output; the record is not empty | Human review |
 
 A record reaches the CRM adapter only if every hard check passes **and**
@@ -64,7 +66,9 @@ confidence clears `MIN_CONFIDENCE`. The gate fails closed, and a test asserts
 that the review branch cannot reach `CRM Write`.
 
 The commitment check is a heuristic. It catches invented commitments; it does not
-prove a paraphrase is faithful. Quarantined items stay on the record under
+prove a paraphrase is faithful, and it does not check that the words were spoken
+by the rep rather than the prospect. A number written as digits when the speaker
+said it in words (`20` for "twenty") is sent to review rather than passed. Quarantined items stay on the record under
 `_quarantined` so a reviewer can see what was held back and why.
 
 Inputs are constrained too: `meeting_id` and `audio_ref` are interpolated into

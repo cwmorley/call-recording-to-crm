@@ -5,11 +5,15 @@
 // evidence. These checks compare the extraction against the transcript itself:
 //   - shape:        required fields exist and have the right types
 //   - quotes:       a verbatim_quote must be an exact substring of the transcript
-//   - competitors:  a competitor name must literally appear in the transcript
-//   - commitments:  most content words of a rep commitment must appear in the
-//                   transcript (a heuristic - it catches inventions, not paraphrase)
+//   - competitors:  the name must appear in the transcript as whole words
+//   - commitments:  every number in a rep commitment must appear in the transcript,
+//                   and at least half of its content words must too (compared as
+//                   whole words with common endings removed). A heuristic: it
+//                   catches inventions, it does not prove a paraphrase is faithful.
+//   - due dates:    a due value must be made of words from the transcript
 // Anything that fails a hard check is moved to _quarantined and the whole record
-// is routed to human review. Ungrounded quotes are stripped and flagged (soft).
+// is routed to human review. Ungrounded quotes and due dates are stripped and
+// flagged (soft).
 const rec = $json;
 const segments = $('Normalize Transcript').first().json.segments || [];
 
@@ -18,11 +22,20 @@ const norm = (s) => String(s || '').toLowerCase()
   .replace(/\s+/g, ' ').trim();
 const transcript = norm(segments.map((s) => s.text).join(' '));
 
+// Whole-word matching: "Clari" must not be grounded by "clarify", nor "rate" by "separate".
+const tokens = (s) => norm(s).replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+const stem = (w) => { const m = /^(.{4,}?)(ing|ed|es|s|e)$/.exec(w); return m ? m[1] : w; };
+const said = tokens(transcript);
+const saidWords = new Set(said);
+const saidStems = new Set(said.map(stem));
+const saidText = ' ' + said.join(' ') + ' ';
+const saysPhrase = (s) => { const t = tokens(s); return t.length > 0 && saidText.includes(' ' + t.join(' ') + ' '); };
+
 const STOP = new Set(['that', 'this', 'with', 'from', 'will', 'have', 'they', 'them', 'their',
   'your', 'about', 'what', 'when', 'were', 'been', 'would', 'could', 'should', 'into', 'over',
   'send', 'sent', 'next', 'week', 'follow', 'call', 'team', 'customer', 'prospect']);
-const contentWords = (s) => norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ')
-  .filter((w) => w.length > 3 && !STOP.has(w));
+const contentWords = (s) => tokens(s).filter((w) => w.length > 3 && !STOP.has(w) && !/\d/.test(w));
+const numbers = (s) => tokens(s).filter((w) => /\d/.test(w));
 
 const flags = [];
 const hard = (code, detail) => flags.push({ code, severity: 'hard', detail });
@@ -35,7 +48,7 @@ for (const key of ARRAYS) {
   if (!Array.isArray(rec[key])) hard('schema_invalid', key + ' is not an array');
 }
 if (!rec.account || typeof rec.account.name !== 'string') hard('schema_invalid', 'account.name missing');
-const conf = Number(rec.confidence);
+const conf = typeof rec.confidence === 'number' ? rec.confidence : NaN;
 if (!Number.isFinite(conf) || conf < 0 || conf > 1) hard('schema_invalid', 'confidence is not a number between 0 and 1');
 
 const arr = (key) => (Array.isArray(rec[key]) ? rec[key] : []);
@@ -52,8 +65,7 @@ const painPoints = arr('pain_points').map((p) => {
 
 // --- competitors (hard) ---------------------------------------------------
 const competitors = arr('competitors_mentioned').filter((c) => {
-  const name = norm(c && c.name);
-  if (name && transcript.includes(name)) return true;
+  if (saysPhrase(c && c.name)) return true;
   quarantined.competitors_mentioned.push(c);
   hard('ungrounded_competitor', String((c && c.name) || '(empty)'));
   return false;
@@ -61,18 +73,24 @@ const competitors = arr('competitors_mentioned').filter((c) => {
 
 // --- rep commitments (hard) -----------------------------------------------
 const MIN_OVERLAP = 0.5;
+const quarantine = (c, code, detail) => {
+  quarantined.rep_commitments.push(c); hard(code, detail); return false; };
 const commitments = arr('rep_commitments').filter((c) => {
-  const words = contentWords(c && c.commitment);
-  if (!words.length) {
-    quarantined.rep_commitments.push(c);
-    hard('empty_commitment', 'commitment has no checkable content');
-    return false;
+  const text = c && c.commitment;
+  const words = contentWords(text);
+  if (!words.length) return quarantine(c, 'empty_commitment', 'commitment has no checkable content');
+  const found = words.filter((w) => saidWords.has(w) || saidStems.has(stem(w))).length;
+  if (found / words.length < MIN_OVERLAP) return quarantine(c, 'ungrounded_commitment', String(text).slice(0, 120));
+  const missing = numbers(text).filter((n) => !saidWords.has(n));
+  if (missing.length) return quarantine(c, 'ungrounded_number', missing.join(', ') + ' in: ' + String(text).slice(0, 100));
+  return true;
+}).map((c) => {
+  // due dates (soft: strip the date, keep the commitment)
+  if (c.due && !tokens(c.due).every((w) => saidWords.has(w))) {
+    soft('ungrounded_due', String(c.due).slice(0, 60));
+    return { ...c, due: '' };
   }
-  const found = words.filter((w) => transcript.includes(w)).length;
-  if (found / words.length >= MIN_OVERLAP) return true;
-  quarantined.rep_commitments.push(c);
-  hard('ungrounded_commitment', String(c.commitment).slice(0, 120));
-  return false;
+  return c;
 });
 
 // --- pipeline health ------------------------------------------------------
@@ -93,5 +111,5 @@ return [{ json: {
   rep_commitments: commitments,
   _quarantined: quarantined,
   validation: { passed, clears_confidence: clearsConfidence, flags,
-    checks: ['shape', 'quotes', 'competitors', 'commitments', 'pipeline_health'] },
+    checks: ['shape', 'quotes', 'competitors', 'commitments', 'due_dates', 'pipeline_health'] },
   _gate: passed && clearsConfidence ? 1 : 0 } }];

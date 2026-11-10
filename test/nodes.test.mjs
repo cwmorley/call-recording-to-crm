@@ -14,8 +14,8 @@ const runtime = (over) => ({ meeting_id: 'demo-001', source: 'folder',
 const reduce = (extractions, over) => runNode('reduce-to-canonical-record', {
   input: extractions.map((extraction, chunk_id) => ({ chunk_id, extraction })),
   nodes: { 'Runtime Config': runtime(over) } })[0];
-const validate = (record) => runNode('validate-extraction', {
-  input: [record], nodes: { 'Normalize Transcript': transcript } })[0];
+const validate = (record, said) => runNode('validate-extraction', {
+  input: [record], nodes: { 'Normalize Transcript': said ? { segments: [{ speaker: 'REP', text: said }] } : transcript } })[0];
 
 // --- ingest ---------------------------------------------------------------
 test('ingest: meeting_id cannot carry shell metacharacters into the ffmpeg command', () => {
@@ -160,6 +160,68 @@ test('validator: a malformed record is reported, not thrown', () => {
   const out = validate({ account: null, confidence: 'high', _min_confidence: 0.6 });
   assert.equal(out._gate, 0);
   assert.ok(out.validation.flags.some((f) => f.code === 'schema_invalid'));
+});
+
+test('validator: a competitor name inside an ordinary word is not grounded', () => {
+  const said = 'Let me clarify the rollout, then I will send the pricing sheet. We keep php scripts for that.';
+  const rec = { ...good, pain_points: [], competitors_mentioned: [{ name: 'Clari' }, { name: 'HP' }] };
+  const out = validate(reduce([rec]), said);
+  assert.deepEqual(out.competitors_mentioned, []);
+  assert.equal(out._quarantined.competitors_mentioned.length, 2);
+});
+
+test('validator: competitor names match on word boundaries, through punctuation and possessives', () => {
+  const said = "We compared Gong's pricing with monday.com and HP. I will send the pricing sheet.";
+  const rec = { ...good, pain_points: [], rep_commitments: [{ commitment: 'Send the pricing sheet' }],
+    competitors_mentioned: [{ name: 'Gong' }, { name: 'Monday.com' }, { name: 'HP' }] };
+  const out = validate(reduce([rec]), said);
+  assert.equal(out.competitors_mentioned.length, 3);
+  assert.equal(out._gate, 1);
+});
+
+test('validator: commitment words are matched as words, not as substrings', () => {
+  // "rate", "port" and "form" only occur inside "separate", "report" and "information".
+  const said = 'We keep a separate report with that information.';
+  const rec = { ...good, pain_points: [], competitors_mentioned: [],
+    rep_commitments: [{ commitment: 'Offer a flat rate on the port form' }] };
+  const out = validate(reduce([rec]), said);
+  assert.equal(out.rep_commitments.length, 0);
+  assert.ok(out.validation.flags.some((f) => f.code === 'ungrounded_commitment'));
+});
+
+test('validator: a commitment that changes word endings is still grounded', () => {
+  const said = 'I am scheduling the security reviews and sending prices tomorrow.';
+  const rec = { ...good, pain_points: [], competitors_mentioned: [],
+    rep_commitments: [{ commitment: 'Schedule a security review and send pricing' }] };
+  assert.equal(validate(reduce([rec]), said)._gate, 1);
+});
+
+test('validator: a number the rep never said quarantines an otherwise grounded commitment', () => {
+  const rec = { ...good, competitors_mentioned: [],
+    rep_commitments: [{ commitment: 'Send the pricing sheet by Friday with a 40% discount' }] };
+  const out = validate(reduce([rec]));
+  assert.equal(out.rep_commitments.length, 0);
+  assert.ok(out.validation.flags.some((f) => f.code === 'ungrounded_number'));
+  assert.equal(out._gate, 0);
+  const said = 'I will send the pricing sheet by Friday with a 40% discount.';
+  assert.equal(validate(reduce([rec]), said)._gate, 1);
+});
+
+test('validator: a due date that is not in the transcript is stripped and flagged', () => {
+  const rec = { ...good, rep_commitments: [
+    { commitment: 'Send the pricing sheet', due: 'Monday' },
+    { commitment: 'Set up a security review', due: 'by Friday' }] };
+  const out = validate(reduce([rec]));
+  assert.deepEqual(out.rep_commitments.map((c) => c.due), ['', 'by Friday']);
+  assert.ok(out.validation.flags.some((f) => f.code === 'ungrounded_due' && f.severity === 'soft'));
+});
+
+test('validator: confidence must be a number, not something that coerces to one', () => {
+  for (const confidence of [true, '0.9', null]) {
+    const out = validate({ ...reduce([good]), confidence });
+    assert.equal(out._gate, 0);
+    assert.ok(out.validation.flags.some((f) => f.code === 'schema_invalid'));
+  }
 });
 
 // --- CRM adapters ---------------------------------------------------------
