@@ -29,23 +29,43 @@ timeouts, small-model hallucination risk), and packaging/go-to-market strategy.
 What is verified, and how:
 
 - **Node logic is tested outside n8n.** `npm test` runs the exact code that ships
-  inside each Code node against synthetic transcripts and model responses for all
-  three providers. 29 tests cover ingest, provider election, transcript
-  normalization, chunking, response parsing, the reducer, the validator, the CRM
-  adapters, and the workflow wiring.
+  inside each Code node against synthetic transcripts and model responses.
+  60 tests cover ingest, provider election, transcript normalization, chunking,
+  response parsing, the reducer, the validator, the review path, the CRM
+  adapters, key handling, the workflow wiring, and the eval scorer. 5 Python
+  tests cover the transcription service's path guard.
 - **The workflow file is a build output.** `src/nodes/*.js` is the source of
   truth; `npm run build` injects it into the workflow, and CI fails if the
   committed JSON differs.
+- **Node formats were checked against the n8n node source** (`n8n-io/n8n`,
+  `packages/nodes-base`, master, November 2026): the `typeVersion` of every
+  node used, the If v2 condition format, the HTTP Request parameter names, the
+  Split In Batches output order (done, loop), and the fact that Execute Command
+  outputs only `exitCode`, `stderr` and `stdout`.
+- **The HubSpot payload was checked against HubSpot's documentation**: the
+  [calls endpoint and property names](https://developers.hubspot.com/docs/api-reference/crm-calls-v3/guide)
+  and the [association type ids](https://developers.hubspot.com/docs/api-reference/latest/crm/associations/associate-records/guide)
+  (call to contact 194, company 182, deal 206).
+- **Also checked against vendor documentation**: Deepgram `multichannel=true`,
+  the Pipedrive `x-api-token` header, Zoho's mandatory Calls fields, and the
+  OpenAI transcription endpoint's required form fields (the reason that path
+  was removed).
 
 What is not verified yet:
 
-- **No end-to-end run inside n8n against a real recording.** Node `typeVersion`s
-  and the If-node condition format were written from memory of n8n's node library
-  and need a spot-check in a live instance.
-- **No live CRM write.** Adapter payloads are tested for shape, not against the
-  HubSpot, Zoho, Salesforce, Pipedrive or monday.com APIs.
-- **The transcription service has not been load-tested.** Its path guard is unit
-  tested; the model code needs a GPU to exercise.
+- **No end-to-end run inside n8n against a real recording.** Reading the node
+  source is not the same as importing the workflow and running it.
+- **No live CRM write.** No request in this repo has been sent to HubSpot, Zoho,
+  Salesforce, Pipedrive or monday.com. Salesforce and monday payloads were not
+  checked against documentation at all. Zoho documents `Call_Duration` as
+  `HH:mm`, which is what the adapter sends; whether a live org reads it that
+  way is unconfirmed. Whether HubSpot renders line breaks in `hs_call_body` is
+  unconfirmed.
+- **No live model run.** The eval set scores hand-written sample outputs only.
+- **The transcription service has not been run.** Its path guard is unit
+  tested; the model and diarization code needs a GPU and model weights.
+- **Whether `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` also unblocks `$env` in the
+  HTTP node expression** that reads the Deepgram key was not confirmed.
 
 ## Guardrails
 
@@ -167,6 +187,15 @@ CRM_PROVIDER                             # zoho | hubspot | salesforce | pipedri
 CRM_TOKEN / CRM_BASE_URL / CRM_WEBHOOK_URL
 MIN_CONFIDENCE                           # gate threshold, default 0.6
 REVIEW_WEBHOOK_URL                       # where held records are POSTed (optional)
+```
+
+Optional fields on the item that enters `Ingest Contract` (from a webhook or
+the manual trigger), used only when supplied:
+
+```
+direction      inbound | outbound          # written to HubSpot/Zoho; never guessed
+duration_sec   number                      # written to HubSpot/Zoho
+crm_refs       { contact_id, deal_id, company_id }   # HubSpot: the call is created associated to these records
 ```
 
 Local transcription service (binds to 127.0.0.1 and reads only from
