@@ -7,7 +7,7 @@ const good = fixture('extraction-good.json');
 
 const cfg = (over = {}) => ({ llm_provider: 'ollama', stt_provider: 'local', ollama_model: 'qwen2.5:7b',
   openai_model: 'gpt-x', anthropic_model: 'claude-x', min_conf: 0.6, crm_provider: 'webhook',
-  crm_webhook: 'https://example.test/hook', crm_token: 'test-token', crm_base: '', ...over });
+  crm_webhook: 'https://example.test/hook', crm_base: '', ...over });
 const runtime = (over) => ({ meeting_id: 'demo-001', source: 'folder',
   start_time: '2026-09-05T15:00:00.000Z', _cfg: cfg(over) });
 
@@ -301,7 +301,7 @@ test('validator: confidence must be a number, not something that coerces to one'
 const ingested = (input = {}) => runNode('ingest-contract', {
   input: [{ meeting_id: 'demo-001', start_time: '2026-09-05T15:00:00.000Z', ...input }] })[0];
 const crm = (over, ingest = {}, record = good) => runNode('build-crm-request', {
-  input: [validate(reduce([record], over))],
+  input: [validate(reduce([record], over))], env: { CRM_TOKEN: 'test-token' },
   nodes: { 'Runtime Config': runtime(over), 'Ingest Contract': ingested(ingest) } })[0]._req;
 
 test('CRM adapter: HubSpot call engagement payload', () => {
@@ -357,6 +357,12 @@ test('CRM adapter: Zoho and Salesforce targets', () => {
   assert.equal(sf.body.TaskSubtype, 'Call');
 });
 
+test('CRM adapter: Pipedrive sends the token in a header, never in the URL', () => {
+  const req = crm({ crm_provider: 'pipedrive' });
+  assert.equal(req.url, 'https://api.pipedrive.com/v1/notes');
+  assert.equal(req.headers['x-api-token'], 'test-token');
+});
+
 test('CRM adapter: default webhook posts the canonical record', () => {
   const req = crm({});
   assert.equal(req.url, 'https://example.test/hook');
@@ -366,4 +372,51 @@ test('CRM adapter: default webhook posts the canonical record', () => {
 
 test('CRM adapter: no target configured is an error, not a silent no-op', () => {
   assert.throws(() => crm({ crm_webhook: '' }), /No CRM target configured/);
+});
+
+// --- secrets --------------------------------------------------------------
+// n8n stores each node's output in execution data. A key may appear in exactly
+// one place: _req.headers of a node whose output goes straight into an HTTP node.
+test('secrets: API keys appear only in the _req.headers of a request-builder node', () => {
+  const env = { OPENAI_API_KEY: 'SECRET-openai', ANTHROPIC_API_KEY: 'SECRET-anthropic',
+    DEEPGRAM_API_KEY: 'SECRET-deepgram', CRM_TOKEN: 'SECRET-crm', CRM_WEBHOOK_URL: 'https://example.test/hook' };
+  const outputs = {};
+  const run = (file, input, nodes, e = env) => (outputs[file + '/' + (e.CRM_PROVIDER || e.LLM || '')] =
+    runNode(file, { input, env: e, nodes }));
+
+  const ingest = run('ingest-contract', [{ meeting_id: 'demo-001', direction: 'inbound', duration_sec: 600 }])[0];
+  const withoutOpenAI = { ...env, OPENAI_API_KEY: '', LLM: 'anthropic' };
+  for (const e of [env, withoutOpenAI]) {
+    const rc = run('runtime-config', [ingest], {}, e)[0];
+    const nodes = { 'Runtime Config': rc, 'Ingest Contract': ingest, 'Normalize Transcript': transcript,
+      'Loop Over Chunks': { chunk_id: 0 } };
+    run('build-stt-request', [{ exitCode: 0 }], nodes, e);
+    const chunk = run('chunk-transcript', [transcript], nodes, e)[0];
+    run('build-llm-request', [chunk], nodes, e);
+    const reduced = run('reduce-to-canonical-record', [{ chunk_id: 0, extraction: good }], nodes, e)[0];
+    const validated = run('validate-extraction', [reduced], nodes, e)[0];
+    for (const CRM_PROVIDER of ['webhook', 'hubspot', 'zoho', 'salesforce', 'pipedrive', 'monday']) {
+      const pe = { ...e, CRM_PROVIDER, MONDAY_BOARD_ID: '1' };
+      const prc = run('runtime-config', [ingest], {}, pe)[0];
+      const pn = { ...nodes, 'Runtime Config': prc, 'Validate Extraction': validated };
+      run('discover-crm-schema', [validated], pn, pe);
+      const record = CRM_PROVIDER === 'monday'
+        ? run('map-to-board-columns', [{ data: { boards: [{ id: '1', name: 'b', columns: [], groups: [] }] } }], pn, pe)[0]
+        : validated;
+      run('build-crm-request', [record], pn, pe);
+    }
+  }
+
+  let keysSeen = 0;
+  for (const [name, out] of Object.entries(outputs)) {
+    const stripped = JSON.parse(JSON.stringify(out), (key, value) => {
+      if (key === '_req' && value && value.headers) {
+        keysSeen += JSON.stringify(value.headers).split('SECRET-').length - 1;
+        return { ...value, headers: undefined };
+      }
+      return value;
+    });
+    assert.ok(!JSON.stringify(stripped).includes('SECRET-'), `${name} leaks a key outside _req.headers`);
+  }
+  assert.ok(keysSeen >= 8, 'the builders did put keys in _req.headers, so the check above is meaningful');
 });

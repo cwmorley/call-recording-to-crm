@@ -79,9 +79,12 @@ ingest.
 
 ## Known limitations
 
-- **API keys travel in item data.** `Runtime Config` reads keys from the
-  environment and passes them along in `_cfg` and `_req.headers`, so they appear
-  in n8n execution data. Moving them to n8n credentials is the next change.
+- **API keys still pass through execution data once.** `Runtime Config` no
+  longer holds keys. Each request-builder node reads its key from the
+  environment and puts it in `_req.headers` for the HTTP node that follows, and
+  the Deepgram key is read in the HTTP node's own header expression. A test
+  asserts no key appears anywhere else. That one builder output is still saved
+  with the execution; n8n credentials would remove it and are the next change.
 - **`Human Review Queue` is a placeholder.** Held records stop there; nothing
   notifies a reviewer yet.
 - **Only HubSpot associates the call to existing records**, and only when the

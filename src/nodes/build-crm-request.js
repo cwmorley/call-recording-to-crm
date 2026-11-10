@@ -5,7 +5,11 @@
 // Facts about the call itself (direction, duration, which CRM records it belongs
 // to) come from the ingest contract. A fact that was not supplied is omitted; if
 // the CRM makes it mandatory the adapter stops rather than inventing a value.
+// The CRM token is read here, immediately before the HTTP call, so it appears
+// only in this node's _req.headers.
+const env = (k) => { try { return $env[k] || ''; } catch (e) { return ''; } };
 const rec = $json;
+const token = env('CRM_TOKEN');
 const c = $('Runtime Config').first().json._cfg;
 const call = $('Ingest Contract').first().json;
 const refs = call.crm_refs || {};
@@ -37,7 +41,7 @@ switch (c.crm_provider) {
     const mins = Math.max(1, Math.round(durationSec / 60));
     const pad = (n) => String(n).padStart(2, '0');
     _req = { url: (c.crm_base || 'https://www.zohoapis.com') + '/crm/v5/Calls',
-      headers: { ...J, Authorization: 'Zoho-oauthtoken ' + c.crm_token },
+      headers: { ...J, Authorization: 'Zoho-oauthtoken ' + token },
       body: { data: [{ Subject: subject, Description: summary, Call_Start_Time: rec.start_time,
         Call_Type: call.direction === 'outbound' ? 'Outbound' : 'Inbound',
         Call_Duration: pad(Math.floor(mins / 60)) + ':' + pad(mins % 60) }] } };   // documented as HH:mm
@@ -53,18 +57,18 @@ switch (c.crm_provider) {
     const associations = Object.keys(TYPE_ID).filter((k) => refs[k]).map((k) => ({ to: { id: refs[k] },
       types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: TYPE_ID[k] }] }));
     _req = { url: 'https://api.hubapi.com/crm/v3/objects/calls',
-      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },
+      headers: { ...J, Authorization: 'Bearer ' + token },
       body: associations.length ? { properties, associations } : { properties } };
     break;
   }
   case 'salesforce':
     _req = { url: (c.crm_base || '') + '/services/data/v60.0/sobjects/Task',
-      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },
+      headers: { ...J, Authorization: 'Bearer ' + token },
       body: { Subject: subject, Description: summary, Status: 'Completed', TaskSubtype: 'Call' } };
     break;
   case 'pipedrive':
-    _req = { url: (c.crm_base || 'https://api.pipedrive.com') + '/v1/notes?api_token=' + c.crm_token,
-      headers: J, body: { content: '<b>' + subject + '</b><br>' + summary.replace(/\n/g, '<br>') } };
+    _req = { url: (c.crm_base || 'https://api.pipedrive.com') + '/v1/notes',
+      headers: { ...J, 'x-api-token': token }, body: { content: '<b>' + subject + '</b><br>' + summary.replace(/\n/g, '<br>') } };
     break;
   case 'monday': {
     const m = rec._monday;
@@ -74,7 +78,7 @@ switch (c.crm_provider) {
     const q = (v) => JSON.stringify(String(v));
     const grp = m.group_id ? `group_id: ${q(m.group_id)}, ` : '';
     _req = { url: 'https://api.monday.com/v2',
-      headers: { ...J, Authorization: c.crm_token, 'API-Version': '2024-10' },
+      headers: { ...J, Authorization: token, 'API-Version': '2024-10' },
       body: { query: `mutation { create_item (board_id: ${Number(m.board_id)}, ${grp}` +
         `item_name: ${q(m.item_name)}, ` +
         `column_values: ${q(JSON.stringify(m.column_values))}) { id } }` } };

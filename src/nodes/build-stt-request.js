@@ -1,6 +1,8 @@
 // Build STT request. Cloud STT needs the audio bytes; local takes a path.
 // The previous node (Execute Command) outputs only { exitCode, stderr, stdout },
 // so the call context is read from Runtime Config, not from $json.
+// No API key here: this item passes through two more nodes before the cloud call,
+// so the STT - Cloud API node reads DEEPGRAM_API_KEY itself in its header expression.
 const ctx = $('Runtime Config').first().json;
 const c = ctx._cfg;
 const wav = '/data/work/' + ctx.meeting_id + '.wav';
@@ -10,8 +12,7 @@ if (c.stt_provider === 'deepgram') {
   // dual: one transcript per channel (exact speakers). mono: diarization.
   return [{ json: { _stt: { mode: 'binary', file: wav,
     url: 'https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&punctuate=true&' +
-         (dual ? 'multichannel=true' : 'diarize=true'),
-    headers: { Authorization: 'Token ' + c.deepgram_key, 'Content-Type': 'audio/wav' } } } }];
+         (dual ? 'multichannel=true' : 'diarize=true') } } }];
 }
 return [{ json: { _stt: { mode: 'json' },
   _req: { url: c.whisper_url + '/transcribe', headers: { 'Content-Type': 'application/json' },

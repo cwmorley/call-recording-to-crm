@@ -63,6 +63,17 @@ test('transcription: local posts a path, cloud posts the audio bytes, and nothin
   assert.ok(!JSON.stringify(committed).includes('audio/transcriptions'));
 });
 
+test('a node that carries a key in _req feeds an HTTP node and nothing else', () => {
+  const type = (name) => committed.nodes.find((n) => n.name === name).type;
+  for (const builder of ['Build LLM Request', 'Build CRM Request', 'Discover CRM Schema']) {
+    const next = targets(builder);
+    assert.equal(next.length, 1);
+    assert.equal(type(next[0]), 'n8n-nodes-base.httpRequest', `${builder} -> ${next[0]}`);
+  }
+  const cloud = committed.nodes.find((n) => n.name === 'STT - Cloud API').parameters;
+  assert.match(cloud.jsonHeaders, /\$env\.DEEPGRAM_API_KEY/);
+});
+
 test('no credentials are stored in the workflow file', () => {
   const text = JSON.stringify(committed);
   assert.ok(!/sk-[A-Za-z0-9]{20,}|Bearer [A-Za-z0-9_\-]{20,}|pat-[a-z0-9-]{20,}/.test(text));
