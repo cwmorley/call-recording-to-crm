@@ -1,0 +1,16 @@
+{
+  "account": { "name": "Northwind Logistics" },
+  "attendees": [{ "name": "Dana", "side": "prospect" }],
+  "qualification": { "budget_signals": ["per-seat price was too high"], "authority": [], "need": ["automated call notes"], "timeline": "end of the quarter", "metrics_mentioned": ["twenty minutes after every call"] },
+  "pain_points": [{ "paraphrase": "Reps lose time writing call notes", "verbatim_quote": "our reps spend twenty minutes after every call typing notes", "severity": "high" }],
+  "competitors_mentioned": [{ "name": "Gong", "context": "evaluated last quarter" }],
+  "objections": [{ "objection": "Per-seat pricing is too high", "resolved": false }],
+  "rep_commitments": [
+    { "commitment": "Send the pricing sheet by Friday", "due": "Friday", "explicit": true },
+    { "commitment": "Set up a security review with the solutions engineer", "explicit": true }
+  ],
+  "next_steps": [{ "action": "Decision before end of quarter", "owner": "Dana" }],
+  "risk_flags": [],
+  "recommended_stage": "Evaluation",
+  "confidence": 0.85
+}

@@ -1,0 +1,12 @@
+{
+  "name": "call-recording-to-crm",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "n8n workflow that turns a call recording into a validated, structured CRM record.",
+  "scripts": {
+    "build": "node scripts/build-workflow.mjs",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=22" }
+}

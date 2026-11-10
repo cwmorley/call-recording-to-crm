@@ -34,7 +34,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const DEMO = '/data/recordings/sample-call.m4a';\nconst i = $input.first().json || {};\nreturn [{ json: {\n  audio_ref:    i.path || i.filePath || i.audio_ref || DEMO,\n  meeting_id:   i.meeting_id || ('local-' + Date.now()),\n  participants: i.participants || [],\n  start_time:   i.start_time || new Date().toISOString(),\n  duration_sec: i.duration_sec || 0,\n  channels:     i.channels || 'mono',   // 'dual' = per-leg channels, no diarization needed\n  source:       i.source || 'folder' } }];"
+        "jsCode": "// Normalized ingest contract. Every acquisition path emits this shape.\n// audio_ref and meeting_id are interpolated into the ffmpeg command line by the\n// next node, so both are constrained here: anything that could break out of the\n// quoted shell argument is rejected instead of being passed through.\nconst DEMO = '/data/recordings/sample-call.m4a';\nconst i = $input.first().json || {};\n\nconst audioRef = String(i.path || i.filePath || i.audio_ref || DEMO);\nif (/[\"'`$\\\\\\n\\r;|&<>]/.test(audioRef)) {\n  throw new Error('audio_ref contains characters that are not allowed in a file reference.');\n}\n\nconst rawId = String(i.meeting_id || ('local-' + Date.now()));\nconst meetingId = rawId.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80) || ('local-' + Date.now());\n\nconst channels = i.channels === 'dual' ? 'dual' : 'mono'; // 'dual' = per-leg channels, no diarization needed\n\nreturn [{ json: {\n  audio_ref:    audioRef,\n  meeting_id:   meetingId,\n  participants: Array.isArray(i.participants) ? i.participants : [],\n  start_time:   i.start_time || new Date().toISOString(),\n  duration_sec: Number(i.duration_sec) || 0,\n  channels,\n  source:       i.source || 'folder' } }];"
       },
       "id": "n0000000-0000-4000-8000-000000000003",
       "name": "Ingest Contract",
@@ -293,8 +293,8 @@
                 "type": "number",
                 "operation": "gte"
               },
-              "leftValue": "={{ $json.confidence }}",
-              "rightValue": "={{ $json._min_confidence }}"
+              "leftValue": "={{ $json._gate }}",
+              "rightValue": "={{ 1 }}"
             }
           ],
           "combinator": "and"
@@ -312,7 +312,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// CRM ADAPTER - canonical record -> provider payload.\n// Default 'webhook' posts the canonical record anywhere: works with ANY CRM,\n// including ones not implemented here. Add a branch to support a new system.\nconst rec = $json;\nconst c = $('Runtime Config').first().json._cfg;\n\nconst lines = [];\nif (rec.rep_commitments?.length) lines.push('COMMITMENTS MADE BY REP:',\n  ...rec.rep_commitments.map(x => '- ' + x.commitment + (x.due ? ' (due ' + x.due + ')' : '')), '');\nif (rec.next_steps?.length) lines.push('NEXT STEPS:',\n  ...rec.next_steps.map(x => '- ' + x.action + ' [' + (x.owner || 'unassigned') + ']'), '');\nif (rec.objections?.length) lines.push('OBJECTIONS:',\n  ...rec.objections.map(x => '- ' + x.objection), '');\nif (rec.pain_points?.length) lines.push('PAIN POINTS:',\n  ...rec.pain_points.map(x => '- ' + x.paraphrase), '');\nif (rec.competitors_mentioned?.length)\n  lines.push('COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', '), '');\nif (rec.risk_flags?.length) lines.push('RISK FLAGS: ' + rec.risk_flags.join(', '), '');\nlines.push(`(${rec.provenance?.llm_provider}/${rec.provenance?.model} \u00b7 confidence ${rec.confidence})`);\nconst summary = lines.join('\\n');\nconst subject = 'Call Summary - ' + (rec.account.name || 'Unknown Account');\n\nconst J = { 'Content-Type': 'application/json' };\nlet _req;\nswitch (c.crm_provider) {\n  case 'zoho':       // NOTE: region-specific domain (.com/.eu/.in/.com.au) via CRM_BASE_URL\n    _req = { url: (c.crm_base || 'https://www.zohoapis.com') + '/crm/v5/Calls',\n      headers: { ...J, Authorization: 'Zoho-oauthtoken ' + c.crm_token },\n      body: { data: [{ Subject: subject, Description: summary,\n        Call_Start_Time: rec.start_time, Call_Type: 'Inbound', Call_Duration: '00:30' }] } };\n    break;\n  case 'hubspot':\n    _req = { url: 'https://api.hubapi.com/crm/v3/objects/calls',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { properties: { hs_call_title: subject, hs_call_body: summary,\n        hs_timestamp: rec.start_time, hs_call_direction: 'INBOUND' } } };\n    break;\n  case 'salesforce':\n    _req = { url: (c.crm_base || '') + '/services/data/v60.0/sobjects/Task',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { Subject: subject, Description: summary, Status: 'Completed', TaskSubtype: 'Call' } };\n    break;\n  case 'pipedrive':\n    _req = { url: (c.crm_base || 'https://api.pipedrive.com') + '/v1/notes?api_token=' + c.crm_token,\n      headers: J, body: { content: '<b>' + subject + '</b><br>' + summary.replace(/\\n/g, '<br>') } };\n    break;\n  case 'monday': {\n    const m = rec._monday;\n    if (!m) throw new Error('monday mapping missing - Discover Schema did not run.');\n    const cv = JSON.stringify(m.column_values).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\n    const grp = m.group_id ? `group_id: \"${m.group_id}\", ` : '';\n    _req = { url: 'https://api.monday.com/v2',\n      headers: { ...J, Authorization: c.crm_token, 'API-Version': '2024-10' },\n      body: { query: `mutation { create_item (board_id: ${m.board_id}, ${grp}` +\n        `item_name: \"${m.item_name.replace(/\"/g, '\\\\\"')}\", ` +\n        `column_values: \"${cv}\") { id } }` } };\n    break;\n  }\n  default:           // generic webhook - canonical record, untouched\n    _req = { url: c.crm_webhook, headers: J, body: rec };\n}\nif (!_req.url) throw new Error('No CRM target configured. Set CRM_WEBHOOK_URL or CRM_PROVIDER + CRM_BASE_URL.');\nreturn [{ json: { ...rec, _req } }];"
+        "jsCode": "// CRM ADAPTER - canonical record -> provider payload.\n// Default 'webhook' posts the canonical record anywhere: works with ANY CRM,\n// including ones not implemented here. Add a branch to support a new system.\nconst rec = $json;\nconst c = $('Runtime Config').first().json._cfg;\n\nconst lines = [];\nif (rec.rep_commitments?.length) lines.push('COMMITMENTS MADE BY REP:',\n  ...rec.rep_commitments.map(x => '- ' + x.commitment + (x.due ? ' (due ' + x.due + ')' : '')), '');\nif (rec.next_steps?.length) lines.push('NEXT STEPS:',\n  ...rec.next_steps.map(x => '- ' + x.action + ' [' + (x.owner || 'unassigned') + ']'), '');\nif (rec.objections?.length) lines.push('OBJECTIONS:',\n  ...rec.objections.map(x => '- ' + x.objection), '');\nif (rec.pain_points?.length) lines.push('PAIN POINTS:',\n  ...rec.pain_points.map(x => '- ' + x.paraphrase), '');\nif (rec.competitors_mentioned?.length)\n  lines.push('COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', '), '');\nif (rec.risk_flags?.length) lines.push('RISK FLAGS: ' + rec.risk_flags.join(', '), '');\nlines.push(`(${rec.provenance?.llm_provider}/${rec.provenance?.model} · confidence ${rec.confidence})`);\nconst summary = lines.join('\\n');\nconst subject = 'Call Summary - ' + (rec.account.name || 'Unknown Account');\n\nconst J = { 'Content-Type': 'application/json' };\nlet _req;\nswitch (c.crm_provider) {\n  case 'zoho':       // NOTE: region-specific domain (.com/.eu/.in/.com.au) via CRM_BASE_URL\n    _req = { url: (c.crm_base || 'https://www.zohoapis.com') + '/crm/v5/Calls',\n      headers: { ...J, Authorization: 'Zoho-oauthtoken ' + c.crm_token },\n      body: { data: [{ Subject: subject, Description: summary,\n        Call_Start_Time: rec.start_time, Call_Type: 'Inbound', Call_Duration: '00:30' }] } };\n    break;\n  case 'hubspot':\n    _req = { url: 'https://api.hubapi.com/crm/v3/objects/calls',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { properties: { hs_call_title: subject, hs_call_body: summary,\n        hs_timestamp: rec.start_time, hs_call_direction: 'INBOUND' } } };\n    break;\n  case 'salesforce':\n    _req = { url: (c.crm_base || '') + '/services/data/v60.0/sobjects/Task',\n      headers: { ...J, Authorization: 'Bearer ' + c.crm_token },\n      body: { Subject: subject, Description: summary, Status: 'Completed', TaskSubtype: 'Call' } };\n    break;\n  case 'pipedrive':\n    _req = { url: (c.crm_base || 'https://api.pipedrive.com') + '/v1/notes?api_token=' + c.crm_token,\n      headers: J, body: { content: '<b>' + subject + '</b><br>' + summary.replace(/\\n/g, '<br>') } };\n    break;\n  case 'monday': {\n    const m = rec._monday;\n    if (!m) throw new Error('monday mapping missing - Discover Schema did not run.');\n    const cv = JSON.stringify(m.column_values).replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"');\n    const grp = m.group_id ? `group_id: \"${m.group_id}\", ` : '';\n    _req = { url: 'https://api.monday.com/v2',\n      headers: { ...J, Authorization: c.crm_token, 'API-Version': '2024-10' },\n      body: { query: `mutation { create_item (board_id: ${m.board_id}, ${grp}` +\n        `item_name: \"${m.item_name.replace(/\"/g, '\\\\\"')}\", ` +\n        `column_values: \"${cv}\") { id } }` } };\n    break;\n  }\n  default:           // generic webhook - canonical record, untouched\n    _req = { url: c.crm_webhook, headers: J, body: rec };\n}\nif (!_req.url) throw new Error('No CRM target configured. Set CRM_WEBHOOK_URL or CRM_PROVIDER + CRM_BASE_URL.');\nreturn [{ json: { ...rec, _req } }];"
       },
       "id": "n0000000-0000-4000-8000-000000000019",
       "name": "Build CRM Request",
@@ -473,7 +473,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Map canonical record -> this board's actual column ids.\n// Deterministic synonym + type matching. Reliable, debuggable, no LLM needed here.\nconst c = $('Runtime Config').first().json._cfg;\nconst rec = $('Reduce to Canonical Record').first().json;\nconst resp = $json;\n\nif (c.crm_provider !== 'monday') return [{ json: rec }];\n\nconst board = resp?.data?.boards?.[0];\nif (!board) throw new Error('monday board not found or token lacks access.');\nconst cols = board.columns || [];\n\nconst norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');\nconst SYNONYMS = {\n  summary:      ['summary','callsummary','notes','callnotes','description','details'],\n  commitments:  ['commitments','repcommitments','promised','followups','owed'],\n  next_steps:   ['nextsteps','nextstep','actions','actionitems','todo'],\n  objections:   ['objections','concerns','blockers'],\n  pain_points:  ['painpoints','pain','challenges','problems','needs'],\n  competitors:  ['competitors','competition','competitor','vsvendor'],\n  risk:         ['risk','riskflags','dealrisk','healthflags'],\n  stage:        ['stage','status','dealstage','pipelinestage'],\n  timeline:     ['timeline','closedate','expectedclose','targetdate'],\n  confidence:   ['confidence','aiconfidence','score'],\n  account:      ['account','company','organisation','organization','client','customer']\n};\nconst findCol = (key, allowed) => {\n  const wants = SYNONYMS[key] || [];\n  return cols.find(col => wants.includes(norm(col.title)) &&\n                          (!allowed || allowed.includes(col.type)));\n};\n\nconst bullets = (arr, f) => (arr || []).map(x => '\u2022 ' + f(x)).join('\\n');\nconst summary = [\n  rec.rep_commitments?.length ? 'COMMITMENTS BY REP:\\n' +\n    bullets(rec.rep_commitments, x => x.commitment + (x.due ? ' (due ' + x.due + ')' : '')) : '',\n  rec.next_steps?.length ? 'NEXT STEPS:\\n' +\n    bullets(rec.next_steps, x => x.action + ' [' + (x.owner || 'unassigned') + ']') : '',\n  rec.objections?.length ? 'OBJECTIONS:\\n' + bullets(rec.objections, x => x.objection) : '',\n  rec.pain_points?.length ? 'PAIN POINTS:\\n' + bullets(rec.pain_points, x => x.paraphrase) : '',\n  rec.competitors_mentioned?.length ?\n    'COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', ') : '',\n  rec.risk_flags?.length ? 'RISK: ' + rec.risk_flags.join(', ') : ''\n].filter(Boolean).join('\\n\\n');\n\nconst TEXTY = ['text','long_text'];\nconst values = {}; const mapped = []; const unmapped = [];\nconst put = (key, val, allowed) => {\n  const col = findCol(key, allowed);\n  if (col) { values[col.id] = val; mapped.push(`${key} -> ${col.title} (${col.id})`); }\n  else unmapped.push(key);\n};\n\nput('summary',     summary, TEXTY);\nput('commitments', bullets(rec.rep_commitments, x => x.commitment), TEXTY);\nput('next_steps',  bullets(rec.next_steps, x => x.action), TEXTY);\nput('objections',  bullets(rec.objections, x => x.objection), TEXTY);\nput('pain_points', bullets(rec.pain_points, x => x.paraphrase), TEXTY);\nput('competitors', (rec.competitors_mentioned || []).map(x => x.name).join(', '), TEXTY);\nput('risk',        (rec.risk_flags || []).join(', '), TEXTY);\nput('confidence',  rec.confidence, ['numbers']);\n\nconst stageCol = findCol('stage', ['status','color']);\nif (stageCol && rec.recommended_stage) {\n  values[stageCol.id] = { label: rec.recommended_stage };\n  mapped.push(`stage -> ${stageCol.title} (${stageCol.id})`);\n} else if (rec.recommended_stage) unmapped.push('stage');\n\nreturn [{ json: { ...rec, _monday: {\n  board_id: board.id, board_name: board.name,\n  group_id: c.monday_group || board.groups?.[0]?.id || '',\n  item_name: 'Call - ' + (rec.account.name || 'Unknown') + ' - ' +\n             new Date(rec.start_time).toISOString().slice(0,10),\n  column_values: values,\n  // surfaced deliberately: unmapped fields ARE the audit finding\n  mapping_report: { mapped, unmapped,\n    note: unmapped.length ? 'Board has no column for: ' + unmapped.join(', ') +\n          '. Extraction is richer than the board can store.' : 'All fields mapped.' }\n} }}];"
+        "jsCode": "// Map canonical record -> this board's actual column ids.\n// Deterministic synonym + type matching. Reliable, debuggable, no LLM needed here.\nconst c = $('Runtime Config').first().json._cfg;\nconst rec = $('Validate Extraction').first().json;\nconst resp = $json;\n\nif (c.crm_provider !== 'monday') return [{ json: rec }];\n\nconst board = resp?.data?.boards?.[0];\nif (!board) throw new Error('monday board not found or token lacks access.');\nconst cols = board.columns || [];\n\nconst norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');\nconst SYNONYMS = {\n  summary:      ['summary','callsummary','notes','callnotes','description','details'],\n  commitments:  ['commitments','repcommitments','promised','followups','owed'],\n  next_steps:   ['nextsteps','nextstep','actions','actionitems','todo'],\n  objections:   ['objections','concerns','blockers'],\n  pain_points:  ['painpoints','pain','challenges','problems','needs'],\n  competitors:  ['competitors','competition','competitor','vsvendor'],\n  risk:         ['risk','riskflags','dealrisk','healthflags'],\n  stage:        ['stage','status','dealstage','pipelinestage'],\n  timeline:     ['timeline','closedate','expectedclose','targetdate'],\n  confidence:   ['confidence','aiconfidence','score'],\n  account:      ['account','company','organisation','organization','client','customer']\n};\nconst findCol = (key, allowed) => {\n  const wants = SYNONYMS[key] || [];\n  return cols.find(col => wants.includes(norm(col.title)) &&\n                          (!allowed || allowed.includes(col.type)));\n};\n\nconst bullets = (arr, f) => (arr || []).map(x => '• ' + f(x)).join('\\n');\nconst summary = [\n  rec.rep_commitments?.length ? 'COMMITMENTS BY REP:\\n' +\n    bullets(rec.rep_commitments, x => x.commitment + (x.due ? ' (due ' + x.due + ')' : '')) : '',\n  rec.next_steps?.length ? 'NEXT STEPS:\\n' +\n    bullets(rec.next_steps, x => x.action + ' [' + (x.owner || 'unassigned') + ']') : '',\n  rec.objections?.length ? 'OBJECTIONS:\\n' + bullets(rec.objections, x => x.objection) : '',\n  rec.pain_points?.length ? 'PAIN POINTS:\\n' + bullets(rec.pain_points, x => x.paraphrase) : '',\n  rec.competitors_mentioned?.length ?\n    'COMPETITORS: ' + rec.competitors_mentioned.map(x => x.name).join(', ') : '',\n  rec.risk_flags?.length ? 'RISK: ' + rec.risk_flags.join(', ') : ''\n].filter(Boolean).join('\\n\\n');\n\nconst TEXTY = ['text','long_text'];\nconst values = {}; const mapped = []; const unmapped = [];\nconst put = (key, val, allowed) => {\n  const col = findCol(key, allowed);\n  if (col) { values[col.id] = val; mapped.push(`${key} -> ${col.title} (${col.id})`); }\n  else unmapped.push(key);\n};\n\nput('summary',     summary, TEXTY);\nput('commitments', bullets(rec.rep_commitments, x => x.commitment), TEXTY);\nput('next_steps',  bullets(rec.next_steps, x => x.action), TEXTY);\nput('objections',  bullets(rec.objections, x => x.objection), TEXTY);\nput('pain_points', bullets(rec.pain_points, x => x.paraphrase), TEXTY);\nput('competitors', (rec.competitors_mentioned || []).map(x => x.name).join(', '), TEXTY);\nput('risk',        (rec.risk_flags || []).join(', '), TEXTY);\nput('confidence',  rec.confidence, ['numbers']);\n\nconst stageCol = findCol('stage', ['status','color']);\nif (stageCol && rec.recommended_stage) {\n  values[stageCol.id] = { label: rec.recommended_stage };\n  mapped.push(`stage -> ${stageCol.title} (${stageCol.id})`);\n} else if (rec.recommended_stage) unmapped.push('stage');\n\nreturn [{ json: { ...rec, _monday: {\n  board_id: board.id, board_name: board.name,\n  group_id: c.monday_group || board.groups?.[0]?.id || '',\n  item_name: 'Call - ' + (rec.account.name || 'Unknown') + ' - ' +\n             new Date(rec.start_time).toISOString().slice(0,10),\n  column_values: values,\n  // surfaced deliberately: unmapped fields ARE the audit finding\n  mapping_report: { mapped, unmapped,\n    note: unmapped.length ? 'Board has no column for: ' + unmapped.join(', ') +\n          '. Extraction is richer than the board can store.' : 'All fields mapped.' }\n} }}];"
       },
       "id": "n0000000-0000-4000-8000-000000000024",
       "name": "Map to Board Columns",
@@ -498,6 +498,50 @@
       "position": [
         1700,
         -380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// VALIDATOR - runs between the model and the CRM. Nothing reaches the CRM adapter\n// unless it passes here AND clears the confidence threshold.\n//\n// The model's own confidence number is self-reported, so it is not treated as\n// evidence. These checks compare the extraction against the transcript itself:\n//   - shape:        required fields exist and have the right types\n//   - quotes:       a verbatim_quote must be an exact substring of the transcript\n//   - competitors:  a competitor name must literally appear in the transcript\n//   - commitments:  most content words of a rep commitment must appear in the\n//                   transcript (a heuristic - it catches inventions, not paraphrase)\n// Anything that fails a hard check is moved to _quarantined and the whole record\n// is routed to human review. Ungrounded quotes are stripped and flagged (soft).\nconst rec = $json;\nconst segments = $('Normalize Transcript').first().json.segments || [];\n\nconst norm = (s) => String(s || '').toLowerCase()\n  .replace(/[‘’]/g, \"'\").replace(/[“”]/g, '\"')\n  .replace(/\\s+/g, ' ').trim();\nconst transcript = norm(segments.map((s) => s.text).join(' '));\n\nconst STOP = new Set(['that', 'this', 'with', 'from', 'will', 'have', 'they', 'them', 'their',\n  'your', 'about', 'what', 'when', 'were', 'been', 'would', 'could', 'should', 'into', 'over',\n  'send', 'sent', 'next', 'week', 'follow', 'call', 'team', 'customer', 'prospect']);\nconst contentWords = (s) => norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ')\n  .filter((w) => w.length > 3 && !STOP.has(w));\n\nconst flags = [];\nconst hard = (code, detail) => flags.push({ code, severity: 'hard', detail });\nconst soft = (code, detail) => flags.push({ code, severity: 'soft', detail });\n\n// --- shape ---------------------------------------------------------------\nconst ARRAYS = ['attendees', 'pain_points', 'competitors_mentioned', 'objections',\n  'rep_commitments', 'next_steps', 'risk_flags'];\nfor (const key of ARRAYS) {\n  if (!Array.isArray(rec[key])) hard('schema_invalid', key + ' is not an array');\n}\nif (!rec.account || typeof rec.account.name !== 'string') hard('schema_invalid', 'account.name missing');\nconst conf = Number(rec.confidence);\nif (!Number.isFinite(conf) || conf < 0 || conf > 1) hard('schema_invalid', 'confidence is not a number between 0 and 1');\n\nconst arr = (key) => (Array.isArray(rec[key]) ? rec[key] : []);\nconst quarantined = { rep_commitments: [], competitors_mentioned: [] };\n\n// --- quotes (soft: strip the quote, keep the paraphrase) -------------------\nconst painPoints = arr('pain_points').map((p) => {\n  if (p && p.verbatim_quote && !transcript.includes(norm(p.verbatim_quote))) {\n    soft('ungrounded_quote', String(p.verbatim_quote).slice(0, 120));\n    return { ...p, verbatim_quote: '' };\n  }\n  return p;\n});\n\n// --- competitors (hard) ---------------------------------------------------\nconst competitors = arr('competitors_mentioned').filter((c) => {\n  const name = norm(c && c.name);\n  if (name && transcript.includes(name)) return true;\n  quarantined.competitors_mentioned.push(c);\n  hard('ungrounded_competitor', String((c && c.name) || '(empty)'));\n  return false;\n});\n\n// --- rep commitments (hard) -----------------------------------------------\nconst MIN_OVERLAP = 0.5;\nconst commitments = arr('rep_commitments').filter((c) => {\n  const words = contentWords(c && c.commitment);\n  if (!words.length) {\n    quarantined.rep_commitments.push(c);\n    hard('empty_commitment', 'commitment has no checkable content');\n    return false;\n  }\n  const found = words.filter((w) => transcript.includes(w)).length;\n  if (found / words.length >= MIN_OVERLAP) return true;\n  quarantined.rep_commitments.push(c);\n  hard('ungrounded_commitment', String(c.commitment).slice(0, 120));\n  return false;\n});\n\n// --- pipeline health ------------------------------------------------------\nconst failed = Number(rec.provenance && rec.provenance.chunks_failed) || 0;\nif (failed > 0) hard('chunk_parse_failures', failed + ' chunk(s) returned unparseable output');\nif (!commitments.length && !arr('next_steps').length && !painPoints.length) {\n  hard('empty_extraction', 'no commitments, next steps or pain points were extracted');\n}\n\nconst passed = !flags.some((f) => f.severity === 'hard');\nconst minConf = Number(rec._min_confidence);\nconst clearsConfidence = Number.isFinite(conf) && conf >= (Number.isFinite(minConf) ? minConf : 0.6);\n\nreturn [{ json: {\n  ...rec,\n  pain_points: painPoints,\n  competitors_mentioned: competitors,\n  rep_commitments: commitments,\n  _quarantined: quarantined,\n  validation: { passed, clears_confidence: clearsConfidence, flags,\n    checks: ['shape', 'quotes', 'competitors', 'commitments', 'pipeline_health'] },\n  _gate: passed && clearsConfidence ? 1 : 0 } }];"
+      },
+      "id": "n0000000-0000-4000-8000-000000000040",
+      "name": "Validate Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1370,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sd1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $('Runtime Config').first().json._cfg.crm_provider }}",
+              "rightValue": "monday"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000041",
+      "name": "Needs Schema Discovery?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1590,
+        140
       ]
     }
   ],
@@ -696,7 +740,7 @@
       "main": [
         [
           {
-            "node": "Confidence Gate",
+            "node": "Validate Extraction",
             "type": "main",
             "index": 0
           }
@@ -707,7 +751,7 @@
       "main": [
         [
           {
-            "node": "Discover CRM Schema",
+            "node": "Needs Schema Discovery?",
             "type": "main",
             "index": 0
           }
@@ -756,6 +800,35 @@
     },
     "Map to Board Columns": {
       "main": [
+        [
+          {
+            "node": "Build CRM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Extraction": {
+      "main": [
+        [
+          {
+            "node": "Confidence Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Schema Discovery?": {
+      "main": [
+        [
+          {
+            "node": "Discover CRM Schema",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Build CRM Request",
