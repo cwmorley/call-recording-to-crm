@@ -89,6 +89,8 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -109,7 +111,7 @@
       "id": "n0000000-0000-4000-8000-000000000007",
       "name": "Local or Cloud STT?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [
         -80,
         380
@@ -284,6 +286,8 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -294,7 +298,7 @@
                 "operation": "gte"
               },
               "leftValue": "={{ $json._gate }}",
-              "rightValue": "={{ 1 }}"
+              "rightValue": 1
             }
           ],
           "combinator": "and"
@@ -304,7 +308,7 @@
       "id": "n0000000-0000-4000-8000-000000000018",
       "name": "Confidence Gate",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [
         1480,
         240
@@ -347,11 +351,13 @@
       ]
     },
     {
-      "parameters": {},
+      "parameters": {
+        "jsCode": "// HUMAN REVIEW QUEUE - where a record goes when the gate holds it back.\n// If REVIEW_WEBHOOK_URL is set, the held record is POSTed there (a Slack workflow,\n// a ticket intake, another n8n workflow). Otherwise the run stops here and the\n// record - with its validation flags and quarantined items - stays in this\n// node's output in the execution data. Nothing on this branch reaches the CRM.\nconst env = (k) => { try { return $env[k] || ''; } catch (e) { return ''; } };\nconst rec = $json;\nconst url = env('REVIEW_WEBHOOK_URL');\n\nconst v = rec.validation || {};\nconst reasons = [...new Set((v.flags || []).filter((f) => f.severity === 'hard').map((f) => f.code))];\nif (!v.clears_confidence) reasons.push('below_min_confidence');\n\nconst held = { ...rec, _review: { status: 'held', reasons, delivery: url ? 'webhook' : 'execution_data' } };\nif (!url) return [{ json: held }];\nreturn [{ json: { ...held,\n  _req: { url, headers: { 'Content-Type': 'application/json' }, body: held } } }];"
+      },
       "id": "n0000000-0000-4000-8000-000000000021",
       "name": "Human Review Queue",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1700,
         340
@@ -359,7 +365,7 @@
     },
     {
       "parameters": {
-        "content": "## EDIT ONE NODE: Runtime Config\n\n**Providers auto-elect on key presence.**\n\nNo keys at all -> Ollama + local Whisper.\nOPENAI_API_KEY -> GPT.\nANTHROPIC_API_KEY -> Claude.\nDEEPGRAM_API_KEY -> cloud STT *with*\ndiarization.\n\nSo the template runs for a stranger with\none API key, and runs fully private with\nzero keys. Same workflow, same canvas.\n\nIf your n8n blocks `$env` in Code nodes,\nhardcode values in the CFG object.",
+        "content": "## EDIT ONE NODE: Runtime Config\n\n**Providers auto-elect on key presence.**\n\nNo keys at all -> Ollama + local Whisper.\nOPENAI_API_KEY -> GPT (LLM only).\nANTHROPIC_API_KEY -> Claude.\nDEEPGRAM_API_KEY -> cloud STT.\n\nKeys are read from the environment by the\nnode that builds each request. They are\nnot copied into Runtime Config.\n\nn8n 2.x blocks `$env` by default. Set\nN8N_BLOCK_ENV_ACCESS_IN_NODE=false or every\nprovider silently falls back to local.",
         "height": 400,
         "width": 320,
         "color": 4
@@ -407,7 +413,7 @@
     },
     {
       "parameters": {
-        "content": "## Confidence gate\n\nScore is discounted by chunk parse-success\nrate, so silent JSON failures drag it down\ninstead of hiding inside an average.\n\nBelow MIN_CONFIDENCE (default 0.6) routes\nto human review. Never let unreviewed model\noutput write to a live CRM - that is how\nthese projects lose trust permanently.",
+        "content": "## Validator, then gate\n\n`Validate Extraction` checks the model output\nagainst the transcript: competitors, rep\ncommitments, numbers, quotes. The model's own\nconfidence is not treated as evidence.\n\nA record passes only if every hard check\npasses AND confidence clears MIN_CONFIDENCE\n(default 0.6). Everything else goes to\n`Human Review Queue`, which posts to\nREVIEW_WEBHOOK_URL if set and otherwise\nstops. That branch cannot reach the CRM.",
         "height": 290,
         "width": 320,
         "color": 2
@@ -423,7 +429,7 @@
     },
     {
       "parameters": {
-        "content": "## CRM-agnostic\n\nCanonical record -> adapter -> provider.\n\nDefault `webhook` POSTs the canonical JSON\nanywhere: works with ANY CRM, including ones\nnot implemented, and needs no credentials -\npoint it at webhook.site to demo.\n\nzoho | hubspot | salesforce | pipedrive are\nbuilt in. Adding one is a new `case` in\nBuild CRM Request. Nothing upstream moves.\n\nZoho: set CRM_BASE_URL for your region\n(.com / .eu / .in / .com.au).",
+        "content": "## CRM-agnostic\n\nCanonical record -> adapter -> provider.\n\nDefault `webhook` POSTs the canonical JSON\nanywhere: works with ANY CRM, including ones\nnot implemented, and needs no credentials -\npoint it at webhook.site to demo.\n\nzoho | hubspot | salesforce | pipedrive |\nmonday are built in. Adding one is a new\n`case` in Build CRM Request.\n\nHubSpot associates the call to `crm_refs`\nfrom the ingest contract. Zoho needs\n`direction` and `duration_sec`, and\nCRM_BASE_URL for your region.",
         "height": 420,
         "width": 330,
         "color": 6
@@ -486,7 +492,7 @@
     },
     {
       "parameters": {
-        "content": "## monday.com\n\nmonday has **no standard fields** - a board is\nwhatever columns the customer made. You cannot\nhardcode a mapping, so we introspect the board\nand match canonical fields to real column ids.\n\n`mapping_report.unmapped` is the money:\nfields the AI extracted that the board has\nnowhere to store. That list IS a consulting\nfinding - hand it to them.\n\nSet MONDAY_BOARD_ID + CRM_TOKEN.\nOther CRMs skip these three nodes.",
+        "content": "## monday.com\n\nmonday has **no standard fields** - a board is\nwhatever columns the customer made. You cannot\nhardcode a mapping, so we introspect the board\nand match canonical fields to real column ids.\n\n`mapping_report.unmapped` is the money:\nfields the AI extracted that the board has\nnowhere to store. That list IS a consulting\nfinding - hand it to them.\n\nSet MONDAY_BOARD_ID + CRM_TOKEN.\n`Needs Schema Discovery?` sends only monday\nthrough these three nodes. Every other CRM\ngoes straight to Build CRM Request.",
         "height": 360,
         "width": 330,
         "color": 7
@@ -518,6 +524,8 @@
         "conditions": {
           "options": {
             "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -538,10 +546,66 @@
       "id": "n0000000-0000-4000-8000-000000000041",
       "name": "Needs Schema Discovery?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "typeVersion": 2.2,
       "position": [
         1590,
         140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rv1",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json._review.delivery }}",
+              "rightValue": "webhook"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n0000000-0000-4000-8000-000000000042",
+      "name": "Review Webhook Set?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1920,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._req.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json._req.headers) }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._req.body) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "n0000000-0000-4000-8000-000000000043",
+      "name": "Notify Reviewer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2140,
+        340
       ]
     }
   ],
@@ -836,6 +900,29 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Human Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Review Webhook Set?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Webhook Set?": {
+      "main": [
+        [
+          {
+            "node": "Notify Reviewer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

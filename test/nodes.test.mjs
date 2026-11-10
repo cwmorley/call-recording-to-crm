@@ -296,6 +296,28 @@ test('validator: confidence must be a number, not something that coerces to one'
   }
 });
 
+// --- human review ------------------------------------------------------------
+const held = () => validate(reduce([{ ...good, confidence: 0.3,
+  competitors_mentioned: [...good.competitors_mentioned, { name: 'Chorus' }] }]));
+const review = (env) => runNode('human-review-queue', { input: [held()], env })[0];
+
+test('review queue: with REVIEW_WEBHOOK_URL the held record is posted with its flags and quarantined items', () => {
+  const out = review({ REVIEW_WEBHOOK_URL: 'https://example.test/review' });
+  assert.equal(out._review.delivery, 'webhook');
+  assert.deepEqual(out._review.reasons, ['ungrounded_competitor', 'below_min_confidence']);
+  assert.equal(out._req.url, 'https://example.test/review');
+  assert.deepEqual(out._req.body._quarantined.competitors_mentioned.map((c) => c.name), ['Chorus']);
+  assert.ok(out._req.body.validation.flags.length > 0);
+  assert.equal(out._req.body._review.status, 'held');
+});
+
+test('review queue: without a webhook the record stops here, visible in execution data', () => {
+  const out = review({});
+  assert.equal(out._review.delivery, 'execution_data');
+  assert.equal('_req' in out, false);
+  assert.equal(out._quarantined.competitors_mentioned.length, 1);
+});
+
 // --- CRM adapters ---------------------------------------------------------
 // `ingest` is what the Ingest Contract node emitted for this call.
 const ingested = (input = {}) => runNode('ingest-contract', {
@@ -395,6 +417,7 @@ test('secrets: API keys appear only in the _req.headers of a request-builder nod
     run('build-llm-request', [chunk], nodes, e);
     const reduced = run('reduce-to-canonical-record', [{ chunk_id: 0, extraction: good }], nodes, e)[0];
     const validated = run('validate-extraction', [reduced], nodes, e)[0];
+    run('human-review-queue', [validated], nodes, e);
     for (const CRM_PROVIDER of ['webhook', 'hubspot', 'zoho', 'salesforce', 'pipedrive', 'monday']) {
       const pe = { ...e, CRM_PROVIDER, MONDAY_BOARD_ID: '1' };
       const prc = run('runtime-config', [ingest], {}, pe)[0];

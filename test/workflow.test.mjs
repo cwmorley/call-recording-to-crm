@@ -42,9 +42,21 @@ test('the gate fails closed: only the passing branch can reach the CRM write', (
     return seen;
   };
   assert.ok(!reach('Human Review Queue').has('CRM Write'));
+  assert.deepEqual([...reach('Human Review Queue')].sort(),
+    ['Human Review Queue', 'Notify Reviewer', 'Review Webhook Set?']);
   const preds = Object.keys(committed.connections).filter((from) =>
     committed.connections[from].main.some((b) => (b || []).some((t) => t.node === 'CRM Write')));
   assert.deepEqual(preds, ['Build CRM Request']);
+});
+
+test('held records are posted to the review webhook when one is set, and otherwise stop', () => {
+  const node = (name) => committed.nodes.find((n) => n.name === name);
+  assert.equal(node('Human Review Queue').type, 'n8n-nodes-base.code');
+  assert.deepEqual(targets('Human Review Queue'), ['Review Webhook Set?']);
+  assert.deepEqual(targets('Review Webhook Set?', 0), ['Notify Reviewer']);
+  assert.deepEqual(targets('Review Webhook Set?', 1), []);
+  assert.equal(node('Notify Reviewer').type, 'n8n-nodes-base.httpRequest');
+  assert.equal(node('Notify Reviewer').parameters.method, 'POST');
 });
 
 test('schema discovery runs only for monday; other providers go straight to the adapter', () => {
@@ -72,6 +84,25 @@ test('a node that carries a key in _req feeds an HTTP node and nothing else', ()
   }
   const cloud = committed.nodes.find((n) => n.name === 'STT - Cloud API').parameters;
   assert.match(cloud.jsonHeaders, /\$env\.DEEPGRAM_API_KEY/);
+});
+
+// Shape taken from the n8n If node source (nodes-base/nodes/If/V2/IfV2.node.ts):
+// typeVersion 2.2 pairs with filter version 2, and the conditions parameter always
+// carries combinator, conditions and the four options keys.
+test('If nodes use the documented v2 condition format', () => {
+  const ifs = committed.nodes.filter((n) => n.type === 'n8n-nodes-base.if');
+  assert.equal(ifs.length, 4);
+  for (const n of ifs) {
+    const c = n.parameters.conditions;
+    assert.equal(n.typeVersion, 2.2, n.name);
+    assert.deepEqual(c.options, { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 });
+    assert.equal(c.combinator, 'and');
+    for (const cond of c.conditions) {
+      assert.match(cond.leftValue, /^=\{\{.+\}\}$/);
+      assert.ok(cond.operator.type === 'string' ? cond.operator.operation === 'equals'
+        : cond.operator.type === 'number' && cond.operator.operation === 'gte');
+    }
+  }
 });
 
 test('no credentials are stored in the workflow file', () => {

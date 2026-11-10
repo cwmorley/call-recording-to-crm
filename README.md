@@ -85,8 +85,10 @@ ingest.
   the Deepgram key is read in the HTTP node's own header expression. A test
   asserts no key appears anywhere else. That one builder output is still saved
   with the execution; n8n credentials would remove it and are the next change.
-- **`Human Review Queue` is a placeholder.** Held records stop there; nothing
-  notifies a reviewer yet.
+- **Human review is a hand-off, not a queue.** A held record is POSTed to
+  `REVIEW_WEBHOOK_URL` if set; otherwise the run stops with the record in the
+  execution data. There is no approve-and-resume step: a reviewer who accepts
+  the record has to write it to the CRM themselves.
 - **Only HubSpot associates the call to existing records**, and only when the
   caller supplies them as `crm_refs` on the ingest contract. Nothing looks up a
   contact or deal from the transcript. The other adapters create a standalone
@@ -119,15 +121,27 @@ monday's native automation engine cannot do."
 
 ## Setup
 
-Requires n8n. Set whichever of these apply:
+Requires n8n. On n8n 2.x three defaults block this workflow (per the
+[2.0 breaking changes](https://docs.n8n.io/2-0-breaking-changes/)) and must be
+changed on the instance:
+
+```
+N8N_BLOCK_ENV_ACCESS_IN_NODE=false       # Code nodes read keys from $env; if blocked, every provider silently falls back to local
+NODES_EXCLUDE="[]"                       # Execute Command and Local File Trigger are disabled by default
+N8N_RESTRICT_FILE_ACCESS_TO=/data/work   # Read/Write Files is confined to ~/.n8n-files by default (cloud STT path)
+```
+
+Then set whichever of these apply:
 
 ```
 OPENAI_API_KEY / ANTHROPIC_API_KEY       # cloud LLM (optional — falls back to Ollama)
+OPENAI_MODEL / ANTHROPIC_MODEL           # model ids; the defaults in Runtime Config may be out of date
 OLLAMA_URL / OLLAMA_MODEL                # local LLM fallback
-DEEPGRAM_API_KEY                         # cloud STT with diarization (optional)
+DEEPGRAM_API_KEY                         # cloud STT (optional — falls back to the local service)
 CRM_PROVIDER                             # zoho | hubspot | salesforce | pipedrive | monday | webhook
 CRM_TOKEN / CRM_BASE_URL / CRM_WEBHOOK_URL
 MIN_CONFIDENCE                           # gate threshold, default 0.6
+REVIEW_WEBHOOK_URL                       # where held records are POSTed (optional)
 ```
 
 Local transcription service (binds to 127.0.0.1 and reads only from
