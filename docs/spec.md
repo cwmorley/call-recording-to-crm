@@ -1,23 +1,19 @@
 # Build Spec: Call Recording → Structured CRM Record (Local AI)
 
-**n8n portfolio workflow — showcase + services funnel**
+**n8n workflow**
 **Spec date:** 2026-09-05
 **Hardware target:** RTX 4060 8GB (Ollama + faster-whisper, already running)
 
 ---
 
-## Positioning
+## Problem and goals
 
-**The pitch:** Gong-class call intelligence, running on your own hardware. No per-seat SaaS, no per-call API cost, no third-party processor touching customer conversations.
+**Goal:** Gong-class call intelligence, running on your own hardware. No per-seat SaaS, no per-call API cost, no third-party processor touching customer conversations.
 
-**Why this one and not the grocery workflow:** it attracts the clients you actually want (CRM/GTM/automation buyers), it monetizes through implementation services rather than $19 template sales, and the local-hardware angle is a differentiator almost nobody selling n8n templates can claim.
-
-**Buyer pain, concretely:**
+**The problem, concretely:**
 - Reps spend 15–20 min post-call writing CRM notes — or don't, and pipeline data rots
 - Managers have no real visibility into objections, competitors, or commitments made
 - Gong/Chorus run ~$1,200–1,800/user/year and ship audio to a third party
-
-**ROI math for the demo:** 5 calls/day × 15 min = 75 min/day/rep. Across 5 reps ≈ 6 hours/day of selling time recovered. That's the number that closes, not the tech.
 
 ---
 
@@ -58,10 +54,10 @@ Most sales calls are not Zoom meetings. RingCentral, Aircall, Dialpad, Twilio, K
 Zoho Voice / PhoneBridge and HubSpot Calling attach recordings directly to call records, reachable via the CRM API. Often the shortest path, since the workflow writes back there anyway.
 
 **Meeting bots — universal fallback**
-**Recall.ai**: one API that sends a bot into Zoom/Meet/Teams/Webex and returns audio. Paid, but collapses four integrations into one. Have an opinion ready — buyers will raise it.
+**Recall.ai**: one API that sends a bot into Zoom/Meet/Teams/Webex and returns audio. Paid, but collapses four integrations into one.
 
 **Local / manual**
-Folder watch or a Drive/Dropbox drop folder. Zero credentials — this is the free public template's trigger.
+Folder watch or a Drive/Dropbox drop folder. Zero credentials.
 
 ### Two things that matter more than the source list
 
@@ -78,9 +74,9 @@ A 45-min video is hundreds of MB; the audio is tens. Zoom exposes the M4A separa
 - **Retention policies** — many orgs auto-purge recordings after 30–90 days. Ingest promptly or lose the corpus.
 - **Consent** — see legal note below. Acquisition is exactly where consent capture belongs.
 
-### Commercial note
+### Scope note
 
-The fragmentation of this layer is **good for the business model**. The free template ships with the folder/Drive trigger and needs no credentials. Platform-specific acquisition cannot be commoditized into a free template — every client has a different phone stack — so **this is where implementation revenue lives**. Build it per-engagement, not into the giveaway.
+The default trigger is the folder/Drive trigger and needs no credentials. Platform-specific acquisition is not part of it: every client has a different phone stack, so it is built per deployment as its own small workflow emitting into the ingest contract.
 
 ---
 
@@ -89,7 +85,7 @@ The fragmentation of this layer is **good for the business model**. The free tem
 ```
 [0] Acquisition (see above) → normalized ingest contract
         ↓
-[1] Trigger — Local File Trigger (watch /recordings) | Manual for demo
+[1] Trigger — Local File Trigger (watch /recordings) | Manual for testing
         ↓
 [2] Normalize audio — Execute Command: ffmpeg → 16kHz mono WAV
         ↓
@@ -122,19 +118,17 @@ Whisper wants 16kHz mono. Skipping this costs accuracy on Teams/Zoom recordings.
 - Wrap it as a small local HTTP service (FastAPI) rather than shelling out per execution — avoids model reload on every call.
 
 **[4] Chunking — do not skip**
-A 45-min call ≈ 8–12k tokens. It *fits* llama3.1:8b's context, but small-model extraction quality degrades badly over long context. Map-reduce over chunks is more accurate and demos as real engineering.
+A 45-min call ≈ 8–12k tokens. It *fits* llama3.1:8b's context, but small-model extraction quality degrades badly over long context. Map-reduce over chunks is more accurate.
 
 **[5] Extraction — model choice**
 `qwen2.5:7b` (already pulled — has `tools` capability, better at structured output than llama3.1:8b for this) with Ollama's JSON/structured output mode. Temperature 0.
 
 **[8] Entity resolution**
-Fuzzy-match company/contact against CRM before writing. This is where the ingredient→SKU pattern from the grocery project transfers directly — same problem, commercial domain.
+Fuzzy-match company/contact against CRM before writing.
 
 ---
 
 ## Extraction schema
-
-This is where domain credibility shows. Generic "summary + action items" is commodity; this is not.
 
 ```json
 {
@@ -156,7 +150,7 @@ This is where domain credibility shows. Generic "summary + action items" is comm
 }
 ```
 
-**`rep_commitments` is the differentiator.** Everyone extracts action items. Almost nobody isolates *what the rep promised* — send pricing, loop in an SE, follow up Thursday. Those are the forgotten promises that quietly kill deals. Lead the demo with this field.
+**`rep_commitments` isolates what the rep promised.** Everyone extracts action items. Almost nobody isolates *what the rep promised* — send pricing, loop in an SE, follow up Thursday. Those are the forgotten promises that quietly kill deals.
 
 **`provenance` + `per_field` confidence** is what makes the output trustworthy enough to write into a CRM. Any field below threshold routes to human review instead of silently corrupting the record.
 
@@ -166,27 +160,23 @@ This is where domain credibility shows. Generic "summary + action items" is comm
 
 **VRAM contention (8GB).** Whisper and the LLM cannot both stay resident comfortably. Run sequentially, and set `OLLAMA_KEEP_ALIVE` so the LLM unloads while Whisper works. Otherwise expect swapping and 10× slowdowns.
 
-**n8n execution timeouts.** A 45-min recording can exceed default execution limits during transcription. Either raise `EXECUTIONS_TIMEOUT`, or split into two workflows (transcribe → webhook → extract). The async split is the more professional pattern and demos better.
+**n8n execution timeouts.** A 45-min recording can exceed default execution limits during transcription. Either raise `EXECUTIONS_TIMEOUT`, or split into two workflows (transcribe → webhook → extract). The async split avoids the timeout and decouples the two stages.
 
 **Small-model hallucination.** A 7B model *will* fabricate structured fields under pressure. This is why validation + confidence gating + human review are in the pipeline, not optional polish. Do not oversell autonomous accuracy — "high-confidence auto-write, low-confidence review queue" is both honest and a better product.
 
-**Recording consent — legal, not technical.** Two-party consent states (CA, WA, IL, FL, PA and others) require all-party consent to record. Any client deployment needs consent capture in the call flow. Flag this in the template README; it's also a credibility signal that you thought about it.
+**Recording consent — legal, not technical.** Two-party consent states (CA, WA, IL, FL, PA and others) require all-party consent to record. Any client deployment needs consent capture in the call flow. Flag this in the template README.
 
 ---
 
-## Packaging strategy
+## Packaging
 
-**Free public template** (n8n.io/workflows): ship it with **API-based** Whisper + LLM as the default path so *anyone* can run it out of the box. A template requiring local GPU infrastructure gets no adoption, and adoption is the whole point of the free tier.
+**Default path:** ship it with **API-based** Whisper + LLM so it runs out of the box without a local GPU. Published to n8n.io/workflows.
 
-**Documented local path**: same workflow, swap two nodes for Ollama + local Whisper. This is the version in your demo video and the one that generates inbound.
+**Documented local path:** same workflow, swap two nodes for Ollama + local Whisper.
 
-**The funnel:** free template → adoption and credibility → demo video showing the local/private version → inbound for implementation work → that's the actual revenue. Template sales are noise; implementation is the business.
-
-**Assets to produce:**
+**Deliverables:**
 1. Workflow JSON (both paths)
 2. README with setup, schema docs, consent warning
-3. 3–4 min demo video: drop a recording → CRM record appears with commitments and risk flags
-4. Short write-up on the privacy/cost argument — this is the piece that travels
 
 ---
 
@@ -195,13 +185,13 @@ This is where domain credibility shows. Generic "summary + action items" is comm
 1. Local faster-whisper service with diarization, verify on one real recording
 2. Extraction prompt + schema, iterate against 3–5 transcripts until fields are stable
 3. Validation + confidence gating
-4. CRM upsert (pick one — Zoho, given existing depth)
+4. CRM upsert (pick one — Zoho)
 5. Entity resolution
 6. Async split + error handling
-7. Package free/API variant, README, demo video
+7. Package API variant, README
 
 Steps 1–3 are the actual work. If extraction quality isn't stable by end of step 2, stop — the rest doesn't matter.
 
 ## Kill criterion
 
-If a 7B local model can't produce stable, schema-valid extractions across five real transcripts, the local-hardware angle collapses and this becomes a generic API workflow with no differentiation. **Test that before building anything downstream.**
+If a 7B local model can't produce stable, schema-valid extractions across five real transcripts, the local path is not viable and this falls back to a generic API workflow. **Test that before building anything downstream.**
