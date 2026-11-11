@@ -3,6 +3,7 @@
 // output through the shipped reducer and validator to see what would be held.
 //
 //   node scripts/eval.mjs evals/outputs/good.json
+//   node scripts/eval.mjs evals/outputs/models/hard/sonnet.json --cases evals/hard-cases.json
 //
 // The outputs file is { outputs: { <case id>: <extraction> } } - one extraction
 // per transcript, in the schema the model is asked for.
@@ -83,15 +84,20 @@ export function evaluate(cases, outputs) {
 }
 
 export const load = (path) => JSON.parse(readFileSync(path, 'utf8'));
-export const evaluateFile = (path) =>
-  evaluate(load(join(root, 'evals', 'cases.json')).cases, load(path).outputs);
+export const evaluateFile = (path, casesPath = join(root, 'evals', 'cases.json')) =>
+  evaluate(load(casesPath).cases, load(path).outputs);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const file = process.argv[2];
-  if (!file) { console.error('usage: node scripts/eval.mjs <outputs.json>'); process.exit(2); }
-  const m = evaluateFile(resolve(file));
+  const args = process.argv.slice(2);
+  const at = args.indexOf('--cases');
+  const casesPath = at >= 0 ? resolve(args.splice(at, 2)[1]) : undefined;
+  const file = args[0];
+  if (!file) { console.error('usage: node scripts/eval.mjs <outputs.json> [--cases <cases.json>]'); process.exit(2); }
+  const m = evaluateFile(resolve(file), casesPath);
+  const meta = load(resolve(file))._meta || {};
   const line = (label, s) => console.log(`${label.padEnd(18)} precision ${s.precision}  recall ${s.recall}  (${s.true_positives} matched, ${s.predicted} predicted, ${s.expected} expected)`);
-  console.log(`${file} - ${m.cases} synthetic transcripts, offline fixtures, no live model run`);
+  console.log(`${file} - ${m.cases} synthetic transcripts`);
+  console.log(`source: ${meta.model || 'unknown'}${meta.note ? ' (' + meta.note + ')' : ''}`);
   line('rep commitments', m.rep_commitments);
   line('competitors', m.competitors);
   console.log(`${'quote grounding'.padEnd(18)} ${m.quote_grounding_rate}`);

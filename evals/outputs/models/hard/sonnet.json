@@ -1,0 +1,175 @@
+{"_meta": {"model": "Claude Sonnet 5.5", "note": "produced by a model following the repository's extraction prompt and schema inside an agent session; not a direct API call"}, "outputs": {
+"hard-alverwick-veterinary": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Sam", "side": "rep"}, {"name": "Dana", "side": "prospect"}],
+ "qualification": {"budget_signals": [], "authority": ["Maureen, practice director, needs to see the numbers before anything gets signed"], "need": ["Dual-channel call recording on the phones (IT to check)"], "timeline": "", "metrics_mentioned": ["IT security questionnaire of about ninety questions"]},
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [],
+ "next_steps": [
+  {"action": "Send the signed-off questionnaire or IT comments", "owner": "Dana", "due_date": "Friday"},
+  {"action": "Check whether the phones can do dual-channel recording", "owner": "Hamid (IT lead)"},
+  {"action": "Book half an hour with Maureen to walk her through the numbers", "owner": "Dana", "due_date": "probably week after next"},
+  {"action": "Reply on the same thread when IT is done", "owner": "Dana"}
+ ],
+ "risk_flags": ["Phones may not support dual-channel recording (unconfirmed)", "IT security review still in progress"],
+ "recommended_stage": "Security/technical review",
+ "confidence": 0.8
+},
+"hard-birchmoor-lettings": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Imran", "side": "prospect"}],
+ "qualification": {"budget_signals": ["Need pricing numbers for the budget meeting"], "authority": [], "need": ["Welsh-language transcription for tenant calls", "Pilot longer than 30 days"], "timeline": "", "metrics_mentioned": ["Half of tenant calls in Cardiff are in Welsh", "30-day pilot, possible 60 days"]},
+ "pain_points": [{"paraphrase": "About half of tenant calls in Cardiff are in Welsh, and Welsh transcription may not be supported", "verbatim_quote": "Like half our tenant calls in Cardiff are in Welsh.", "severity": "medium"}],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Thirty-day pilot is too short because of the lettings cycle", "rep_response": "Could probably stretch to sixty days if legal is okay on the rep's side; cannot agree to it alone", "resolved": false},
+  {"objection": "Needs pricing for the budget meeting", "rep_response": "Cannot promise pricing this week because finance is mid quarter-close; next week more realistic, no date given", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Send the pilot success criteria doc", "due": "tomorrow morning", "explicit": true},
+  {"commitment": "Try to find out whether Welsh transcription is on the roadmap (no promises)", "due": "", "explicit": false}
+ ],
+ "next_steps": [
+  {"action": "Send pilot success criteria doc", "owner": "rep", "due_date": "tomorrow morning"},
+  {"action": "Check spam for the MSA sent yesterday", "owner": "Imran"},
+  {"action": "Share the success criteria doc with the ops manager", "owner": "Imran"},
+  {"action": "Get internal approval for a 60-day pilot", "owner": "rep"}
+ ],
+ "risk_flags": ["No pricing date committed", "Welsh transcription support unknown", "MSA may not have been received (possibly in spam)", "60-day pilot not yet approved"],
+ "recommended_stage": "Evaluation / contracting",
+ "confidence": 0.8
+},
+"hard-cedarvane-physio": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Harriet", "side": "prospect"}],
+ "qualification": {"budget_signals": [], "authority": ["Lena is the compliance lead and reviews the data handling"], "need": ["Written one-pager on patient data handling", "Simple solution"], "timeline": "Lena has a review on Friday; one-pager wanted by Thursday", "metrics_mentioned": ["Twelve-clinic physio group"]},
+ "pain_points": [],
+ "competitors_mentioned": [{"name": "Gong", "context": "Looked at briefly last year; too much for a twelve-clinic physio group"}],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Put together a one-pager on how patient data is handled", "due": "Thursday", "explicit": true},
+  {"commitment": "Resend the deck with updated numbers on slide six", "due": "today", "explicit": true},
+  {"commitment": "Send a calendar invite for a live redaction demo with Lena", "due": "Wednesday at three (meeting time); invite date not stated", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send patient data handling one-pager", "owner": "rep", "due_date": "Thursday"},
+  {"action": "Resend deck with updated slide six numbers", "owner": "rep", "due_date": "today"},
+  {"action": "Live redaction demo for Lena", "owner": "rep", "due_date": "Wednesday at three"},
+  {"action": "Forward Lena's email to the rep", "owner": "Harriet"}
+ ],
+ "risk_flags": ["Compliance lead sign-off needed; review on Friday"],
+ "recommended_stage": "Demo / compliance review",
+ "confidence": 0.8
+},
+"hard-dunholt-roofing": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Gary", "side": "prospect"}],
+ "qualification": {"budget_signals": [], "authority": ["Office manager handles compliance and will review the consent script"], "need": ["Capture of inbound and outbound calls", "Reliable follow-ups after storm cold-calling"], "timeline": "", "metrics_mentioned": ["Twelve reps; estimators excluded"]},
+ "pain_points": [{"paraphrase": "Follow-up calls promised to homeowners are missed", "verbatim_quote": "Someone says call me Tuesday and nobody calls them Tuesday.", "severity": "medium"}],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Reps are competitive and will hate it if it slows them down", "rep_response": "Reps do nothing different; they make the call and notes and follow-ups land in the CRM afterwards", "resolved": false},
+  {"objection": "What happens if a customer says don't record me", "rep_response": "The rep stops recording and the call gets a manual note", "resolved": true}
+ ],
+ "rep_commitments": [
+  {"commitment": "Email the one-page customer consent script", "due": "this afternoon", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Email the one-page consent script", "owner": "rep", "due_date": "this afternoon"},
+  {"action": "Run the consent script past the office manager", "owner": "Gary"}
+ ],
+ "risk_flags": ["Rep adoption risk if it slows reps down", "Call-recording consent and compliance review pending"],
+ "recommended_stage": "Discovery / evaluation",
+ "confidence": 0.8
+},
+"hard-elmsworth-brokers": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Nadia", "side": "prospect"}],
+ "qualification": {"budget_signals": [], "authority": ["Callum is the HubSpot admin who will fill in the field mapping"], "need": ["Call notes and tasks written into HubSpot"], "timeline": "", "metrics_mentioned": ["On HubSpot six years"]},
+ "pain_points": [],
+ "competitors_mentioned": [{"name": "Clari", "context": "MD saw Clari's call recording at a conference in the spring; more than they need, so interest died"}],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send the HubSpot field-mapping template", "due": "Friday", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send field-mapping template", "owner": "rep", "due_date": "Friday"},
+  {"action": "Fill in the field-mapping template", "owner": "Callum (HubSpot admin)"}
+ ],
+ "risk_flags": [],
+ "recommended_stage": "Technical setup / evaluation",
+ "confidence": 0.8
+},
+"hard-fernstow-logistics": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Wendy", "side": "prospect"}],
+ "qualification": {"budget_signals": ["Asked for 15% discount at forty seats", "Quote seen; described as fine apart from seat count"], "authority": [], "need": ["Forty seats", "Live by January fifth for new retailer contract"], "timeline": "Sign by the thirtieth; live by January fifth", "metrics_mentioned": ["Forty reps, up from twenty-five", "15% discount requested"]},
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Requests fifteen percent off at forty seats", "rep_response": "Cannot do fifteen; will ask manager about room on a two-year term and respond by Tuesday", "resolved": false},
+  {"objection": "Needs go-live by January fifth", "rep_response": "Tight; will not commit until onboarding has looked at the setup", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Redo the quote for forty seats at the same per-seat price", "due": "tomorrow", "explicit": true},
+  {"commitment": "Ask manager whether there is any room on a two-year term and come back to Wendy", "due": "Tuesday", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send revised forty-seat quote", "owner": "rep", "due_date": "tomorrow"},
+  {"action": "Ask manager about discount on a two-year term and report back", "owner": "rep", "due_date": "Tuesday"},
+  {"action": "Send the shift rota so onboarding can review the setup", "owner": "Wendy"}
+ ],
+ "risk_flags": ["January fifth go-live not confirmed", "Signing by the thirtieth depends on the discount", "Discount request at fifteen percent declined"],
+ "recommended_stage": "Negotiation",
+ "confidence": 0.85
+},
+"hard-gravenor-staffing": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Martin", "side": "prospect"}],
+ "qualification": {"budget_signals": [], "authority": [], "need": ["Technical demo on real calls rather than a slideshow", "Whitelisting of the vendor domain by IT"], "timeline": "Demo Thursday the twentieth at two o'clock", "metrics_mentioned": ["Five or six sample recordings"]},
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send the calendar invite to Martin and Tomasz", "due": "today", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send calendar invite for the technical demo", "owner": "rep", "due_date": "today"},
+  {"action": "Run the technical demo on the prospect's recordings", "owner": "Priya (SE)", "due_date": "Thursday the twentieth at two o'clock"},
+  {"action": "Send five or six sample recordings", "owner": "Tomasz", "due_date": "probably Monday"},
+  {"action": "Whitelist the vendor domain", "owner": "Ruth (IT)", "due_date": "this week"}
+ ],
+ "risk_flags": ["Marco's attendance is not confirmed"],
+ "recommended_stage": "Technical demo",
+ "confidence": 0.8
+},
+"hard-holbeck-pryce-wholesale": {
+ "account": {"name": ""},
+ "attendees": [{"name": "Aisha", "side": "rep"}, {"name": "Rob", "side": "prospect"}],
+ "qualification": {"budget_signals": ["Finance director signs off anything over ten grand"], "authority": ["Shona, finance director, signs off anything over ten grand", "Kev, Salesforce admin, must be satisfied first"], "need": ["Automated call notes and follow-ups", "Simple tool rather than lots of dashboards"], "timeline": "Before the end of Q1 would be nice; no firm date", "metrics_mentioned": ["Thirty-two reps on the phones plus four team leads", "Salesforce Enterprise (not confirmed)", "Sign-off threshold over ten grand"]},
+ "pain_points": [
+  {"paraphrase": "Reps log calls manually and inconsistently; the admin is tired of chasing reps for notes", "verbatim_quote": "he's sick of chasing reps for notes", "severity": "medium"},
+  {"paraphrase": "Admin worries about API limits after a past incident took down the Salesforce org", "verbatim_quote": "He had a bad experience with something hammering the Salesforce API limits last year and it took the whole org down for an afternoon.", "severity": "high"}
+ ],
+ "competitors_mentioned": [{"name": "Gong", "context": "Trialled a couple of years ago; reportedly unused after the first month, due to price and too many dashboards"}],
+ "objections": [
+  {"objection": "Admin concerned about Salesforce API rate limits", "rep_response": "Writes are batched rather than per field; will send the API usage and rate-limit doc", "resolved": false},
+  {"objection": "Unclear how the mobile app handles patchy signal for reps calling from vans", "rep_response": "Not sure; would check with the product team", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Send Kev the API usage and rate-limit doc, copying Rob", "due": "end of day tomorrow", "explicit": true},
+  {"commitment": "Check with the product team how mobile handles patchy signal", "due": "", "explicit": false}
+ ],
+ "next_steps": [
+  {"action": "Send API usage and rate-limit doc to Kev, copy Rob", "owner": "rep", "due_date": "end of day tomorrow"},
+  {"action": "Share Kev's email in the chat", "owner": "Rob"},
+  {"action": "Check patchy-signal behavior on mobile with product team", "owner": "rep"},
+  {"action": "Review the API doc and give a view; then take it to Shona if positive", "owner": "Kev / Rob"}
+ ],
+ "risk_flags": ["Admin has a veto and is worried about API limits", "Desk phones may need provider changes for recording", "Prior Gong trial was abandoned", "Finance director sign-off needed over ten grand"],
+ "recommended_stage": "Technical evaluation",
+ "confidence": 0.8
+}
+}}

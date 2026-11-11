@@ -1,0 +1,257 @@
+{"_meta": {"model": "claude-opus-5-5", "note": "produced by a model following the repository's extraction prompt and schema inside an agent session; not a direct API call"},
+"outputs": {
+"hard-alverwick-veterinary": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Sam", "side": "rep"},
+  {"name": "Dana", "side": "prospect"},
+  {"name": "Hamid", "role": "IT lead", "side": "prospect"},
+  {"name": "Maureen", "role": "practice director", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["Maureen, practice director, to see the numbers before anything gets signed"],
+  "need": [],
+  "timeline": "",
+  "metrics_mentioned": []
+ },
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [],
+ "next_steps": [
+  {"action": "Send signed-off security questionnaire or IT comments", "owner": "Dana", "due_date": "Friday"},
+  {"action": "Check whether the phones can do dual-channel recording", "owner": "Hamid"},
+  {"action": "Book half an hour with Maureen to walk through the deck/numbers", "owner": "Dana", "due_date": "probably week after next"}
+ ],
+ "risk_flags": ["IT security review (ninety-question questionnaire) still in progress", "Dual-channel recording support on phones unconfirmed", "Practice director sign-off still required"],
+ "recommended_stage": "Security / technical review",
+ "confidence": 0.8
+},
+"hard-birchmoor-lettings": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Imran", "side": "prospect"},
+  {"name": "Bethany", "role": "legal", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": ["Prospect needs pricing numbers for the budget meeting"],
+  "authority": ["Legal (Bethany) reviewing the MSA"],
+  "need": ["Welsh-language transcription: about half of tenant calls in Cardiff are in Welsh", "Pilot longer than thirty days due to the lettings cycle"],
+  "timeline": "",
+  "metrics_mentioned": []
+ },
+ "pain_points": [
+  {"paraphrase": "Thirty-day pilot too short given the lettings cycle", "verbatim_quote": "Thirty days feels short for us, honestly, because of the lettings cycle.", "severity": "medium"},
+  {"paraphrase": "Many tenant calls in Cardiff are in Welsh", "verbatim_quote": "Like half our tenant calls in Cardiff are in Welsh.", "severity": "medium"}
+ ],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Thirty-day pilot too short", "rep_response": "Could probably stretch to sixty days if legal on rep's side approves; can't say yes himself", "resolved": false},
+  {"objection": "Needs pricing for budget meeting", "rep_response": "Can't promise pricing this week due to finance quarter-close; next week more realistic, no date given", "resolved": false},
+  {"objection": "Welsh-language transcription needed", "rep_response": "Will try to see if it is on the roadmap; no promises", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Send the pilot success criteria doc", "due": "tomorrow morning", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Check spam for the MSA", "owner": "Imran"},
+  {"action": "Send pilot success criteria doc", "owner": "rep", "due_date": "tomorrow morning"},
+  {"action": "Share pilot success criteria doc with ops manager", "owner": "Imran"}
+ ],
+ "risk_flags": ["Pricing not available before budget meeting; no committed date", "Pilot extension requires legal approval on vendor side", "Welsh transcription support unknown"],
+ "recommended_stage": "Pilot scoping / negotiation",
+ "confidence": 0.75
+},
+"hard-cedarvane-physio": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Harriet", "side": "prospect"},
+  {"name": "Lena", "role": "compliance lead", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["Lena, compliance lead, reviewing data handling"],
+  "need": ["Written documentation of patient data handling", "Simple tool for a twelve-clinic physio group"],
+  "timeline": "Lena has a review Friday",
+  "metrics_mentioned": ["twelve-clinic physio group"]
+ },
+ "pain_points": [
+  {"paraphrase": "Gong was too much for their size; want something simple", "verbatim_quote": "it was way too much for a twelve-clinic physio group", "severity": "low"}
+ ],
+ "competitors_mentioned": [
+  {"name": "Gong", "context": "Looked at briefly last year; too much for a twelve-clinic group"}
+ ],
+ "objections": [
+  {"objection": "Compliance lead needs patient data handling in writing", "rep_response": "Agreed to a one-pager by Thursday and offered a live redaction demo", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Put together a one-pager on how patient data is handled", "due": "Thursday", "explicit": true},
+  {"commitment": "Resend the deck with updated slide six numbers", "due": "today", "explicit": true},
+  {"commitment": "Send calendar invite for live redaction demo Wednesday at three to Harriet and Lena", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Live redaction demo for Lena", "owner": "rep", "due_date": "Wednesday at three"},
+  {"action": "Forward Lena's email to rep", "owner": "Harriet", "due_date": "after the call"}
+ ],
+ "risk_flags": ["Compliance review pending"],
+ "recommended_stage": "Evaluation / compliance review",
+ "confidence": 0.8
+},
+"hard-dunholt-roofing": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Gary", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["Office manager handles compliance"],
+  "need": ["Capture inbound quote and outbound calls; follow-ups get lost"],
+  "timeline": "",
+  "metrics_mentioned": ["Twelve reps"]
+ },
+ "pain_points": [
+  {"paraphrase": "Follow-ups from cold calls get lost", "verbatim_quote": "Someone says call me Tuesday and nobody calls them Tuesday.", "severity": "high"}
+ ],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Reps will hate it if it slows them down", "rep_response": "Reps do nothing different; notes and follow-ups land in the CRM afterwards", "resolved": true},
+  {"objection": "What if the customer says don't record me", "rep_response": "Rep stops recording and the call gets a manual note; will email consent script", "resolved": true}
+ ],
+ "rep_commitments": [
+  {"commitment": "Email the one-page customer consent script", "due": "this afternoon", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Run consent script past office manager", "owner": "Gary"}
+ ],
+ "risk_flags": ["Rep adoption risk if tool slows them down"],
+ "recommended_stage": "Discovery",
+ "confidence": 0.75
+},
+"hard-elmsworth-brokers": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Nadia", "side": "prospect"},
+  {"name": "Callum", "role": "HubSpot admin", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["MD previously evaluated Clari"],
+  "need": ["Call notes and tasks written into HubSpot"],
+  "timeline": "",
+  "metrics_mentioned": []
+ },
+ "pain_points": [],
+ "competitors_mentioned": [
+  {"name": "Clari", "context": "MD saw its call recording at a conference; more than they need, died"}
+ ],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send HubSpot field-mapping template", "due": "Friday", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Callum to fill in field-mapping template", "owner": "Callum"}
+ ],
+ "risk_flags": [],
+ "recommended_stage": "Technical scoping",
+ "confidence": 0.75
+},
+"hard-fernstow-logistics": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Wendy", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": ["Requested fifteen percent off at forty seats", "Would sign by the thirtieth if discount granted"],
+  "authority": [],
+  "need": ["Live by January fifth for new retailer contract"],
+  "timeline": "Sign by the thirtieth (conditional); go-live January fifth",
+  "metrics_mentioned": ["Forty reps, up from twenty-five"]
+ },
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [
+  {"objection": "Wants fifteen percent discount", "rep_response": "Can't do fifteen; will ask manager about room on a two-year term", "resolved": false},
+  {"objection": "Needs go-live by January fifth", "rep_response": "Won't commit until onboarding reviews setup", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Redo quote for forty seats at same per-seat price", "due": "tomorrow", "explicit": true},
+  {"commitment": "Ask manager about room on a two-year term and come back either way", "due": "Tuesday", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send shift rota for onboarding", "owner": "Wendy"}
+ ],
+ "risk_flags": ["Discount request exceeds what rep can offer", "January fifth go-live not confirmed"],
+ "recommended_stage": "Negotiation",
+ "confidence": 0.85
+},
+"hard-gravenor-staffing": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Martin", "side": "prospect"},
+  {"name": "Priya", "role": "SE", "side": "rep"},
+  {"name": "Tomasz", "role": "runs phone system", "side": "prospect"},
+  {"name": "Marco", "role": "onboarding", "side": "rep"},
+  {"name": "Ruth", "role": "IT", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": [],
+  "authority": [],
+  "need": ["Recruiters want to see it on real calls"],
+  "timeline": "",
+  "metrics_mentioned": []
+ },
+ "pain_points": [],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send calendar invite to Martin and Tomasz", "due": "today", "explicit": true},
+  {"commitment": "Priya to run technical demo on prospect's recordings", "due": "Thursday the twentieth at two o'clock", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send five or six sample recordings", "owner": "Tomasz", "due_date": "probably Monday"},
+  {"action": "Whitelist vendor domain", "owner": "Ruth", "due_date": "this week"},
+  {"action": "Technical demo", "owner": "Priya", "due_date": "Thursday the twentieth at two o'clock"}
+ ],
+ "risk_flags": [],
+ "recommended_stage": "Technical demo",
+ "confidence": 0.8
+},
+"hard-holbeck-pryce-wholesale": {
+ "account": {"name": ""},
+ "attendees": [
+  {"name": "Aisha", "side": "rep"},
+  {"name": "Rob", "side": "prospect"},
+  {"name": "Kev", "role": "Salesforce admin", "side": "prospect"},
+  {"name": "Shona", "role": "finance director", "side": "prospect"}
+ ],
+ "qualification": {
+  "budget_signals": ["Shona signs off anything over ten grand"],
+  "authority": ["Shona, finance director, signs off anything over ten grand", "Kev (admin) effectively has veto"],
+  "need": ["Automated call notes; reps log calls manually and inconsistently"],
+  "timeline": "Before the end of Q1 would be nice",
+  "metrics_mentioned": ["Thirty-two reps plus four team leads"]
+ },
+ "pain_points": [
+  {"paraphrase": "Admin is tired of chasing reps for notes", "verbatim_quote": "he's sick of chasing reps for notes", "severity": "medium"},
+  {"paraphrase": "Call logging is manual and inconsistent", "verbatim_quote": "All manual. Some of them do it, some of them don't.", "severity": "medium"},
+  {"paraphrase": "Concern about Salesforce API limits after a past outage", "verbatim_quote": "it took the whole org down for an afternoon", "severity": "high"}
+ ],
+ "competitors_mentioned": [
+  {"name": "Gong", "context": "Trialled a couple of years ago; nobody used it after the first month, price and too many dashboards"}
+ ],
+ "objections": [
+  {"objection": "Salesforce API limit concerns", "rep_response": "Writes are batched; will send API usage and rate-limit doc", "resolved": false},
+  {"objection": "Mobile calls with patchy signal", "rep_response": "Works via app; unsure on patchy signal, would want to check with product", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Send Kev the API usage and rate-limit doc, copying Rob", "due": "end of day tomorrow", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Drop Kev's email in the chat", "owner": "Rob"}
+ ],
+ "risk_flags": ["Kev's approval gates the deal", "Desk phones may need provider change for recording", "Previous Gong trial failed on adoption"],
+ "recommended_stage": "Technical evaluation",
+ "confidence": 0.8
+}
+}}
