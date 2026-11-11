@@ -1,0 +1,138 @@
+{"_meta": {"model": "Claude Sonnet 5.5", "note": "produced by a model following the repository's extraction prompt and schema inside an agent session; not a direct API call"}, "outputs": {
+"harborline-freight": {
+ "account": {"name": "Harborline Freight"},
+ "attendees": [{"name": "Priya", "side": "prospect"}],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["Needs to brief VP of Sales before end of month"],
+  "need": ["Reduce manual call logging; CRM sync"],
+  "timeline": "Brief VP of Sales before the end of the month",
+  "metrics_mentioned": ["About fifteen minutes per call on notes"]
+ },
+ "pain_points": [
+  {"paraphrase": "Reps log calls by hand, spending about fifteen minutes per call on notes", "verbatim_quote": "Our reps spend about fifteen minutes per call on notes", "severity": "unknown"},
+  {"paraphrase": "Prior CallScribe trial never synced to their CRM", "verbatim_quote": "we trialled CallScribe last year but it never synced to our CRM", "severity": "unknown"}
+ ],
+ "competitors_mentioned": [{"name": "CallScribe", "context": "Trialled last year; never synced to their CRM"}],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send the integration guide", "due": "Thursday", "explicit": true},
+  {"commitment": "Set up a call with the solutions engineer", "due": "next week", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send integration guide", "owner": "rep", "due_date": "Thursday"},
+  {"action": "Set up call with solutions engineer", "owner": "rep", "due_date": "next week"},
+  {"action": "Brief VP of Sales", "owner": "prospect", "due_date": "before the end of the month"}
+ ],
+ "risk_flags": ["Previous CallScribe trial failed to sync with CRM"],
+ "recommended_stage": "",
+ "confidence": 0.8
+},
+"tallgrass-dental": {
+ "account": {"name": "Tallgrass Dental"},
+ "attendees": [{"name": "Marcus", "side": "prospect"}],
+ "qualification": {
+  "budget_signals": [],
+  "authority": ["Will review with office manager"],
+  "need": ["Track who promised callbacks at the front desk"],
+  "timeline": "",
+  "metrics_mentioned": []
+ },
+ "pain_points": [
+  {"paraphrase": "Front desk loses track of who promised a callback; nothing is written down", "verbatim_quote": "We lose track of who promised a callback, and nobody writes it down.", "severity": "unknown"}
+ ],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Email a sample report", "due": "tomorrow", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Email sample report", "owner": "rep", "due_date": "tomorrow"},
+  {"action": "Review sample report with office manager", "owner": "prospect", "due_date": "Monday"}
+ ],
+ "risk_flags": [],
+ "recommended_stage": "",
+ "confidence": 0.8
+},
+"quarry-ridge-supply": {
+ "account": {"name": "Quarry Ridge Supply"},
+ "attendees": [{"name": "Elena", "side": "prospect"}],
+ "qualification": {
+  "budget_signals": ["NoteHawk quoted 40 dollars per seat"],
+  "authority": ["Decision to be made at the board meeting"],
+  "need": [],
+  "timeline": "Decision at the board meeting on the 18th",
+  "metrics_mentioned": ["25 seats", "40 dollars per seat (NoteHawk quote)"]
+ },
+ "pain_points": [],
+ "competitors_mentioned": [
+  {"name": "NoteHawk", "context": "Being compared; quoted 40 dollars per seat"},
+  {"name": "DialSense", "context": "Being compared in the evaluation"}
+ ],
+ "objections": [
+  {"objection": "NoteHawk quoted 40 dollars per seat; rep cannot match price", "rep_response": "I cannot match that today, but I will get you a quote for 25 seats by Friday and I will share two customer references.", "resolved": false}
+ ],
+ "rep_commitments": [
+  {"commitment": "Get a quote for 25 seats", "due": "Friday", "explicit": true},
+  {"commitment": "Share two customer references", "due": "", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Provide quote for 25 seats", "owner": "rep", "due_date": "Friday"},
+  {"action": "Share two customer references", "owner": "rep", "due_date": ""},
+  {"action": "Decide at board meeting", "owner": "prospect", "due_date": "the 18th"}
+ ],
+ "risk_flags": ["Competing evaluation against NoteHawk and DialSense", "Rep cannot match NoteHawk's price"],
+ "recommended_stage": "",
+ "confidence": 0.75
+},
+"pinecrest-heating": {
+ "account": {"name": "Pinecrest Heating"},
+ "attendees": [{"name": "Joel", "side": "prospect"}],
+ "qualification": {
+  "budget_signals": [],
+  "authority": [],
+  "need": ["Call recording"],
+  "timeline": "",
+  "metrics_mentioned": ["Dispatchers retype every job note twice"]
+ },
+ "pain_points": [
+  {"paraphrase": "Dispatchers retype every job note twice", "verbatim_quote": "Our dispatchers retype every job note twice, which is the real problem.", "severity": "unknown"}
+ ],
+ "competitors_mentioned": [],
+ "objections": [],
+ "rep_commitments": [],
+ "next_steps": [
+  {"action": "Ask phone vendor whether recording can be switched on", "owner": "prospect", "due_date": ""},
+  {"action": "Send call volumes", "owner": "prospect", "due_date": ""}
+ ],
+ "risk_flags": ["Pinecrest does not currently record sales calls"],
+ "recommended_stage": "",
+ "confidence": 0.75
+},
+"bluefin-analytics": {
+ "account": {"name": "Bluefin Analytics"},
+ "attendees": [{"name": "Sam", "side": "prospect"}],
+ "qualification": {
+  "budget_signals": ["Prospect will take the order form to finance if security approves"],
+  "authority": ["Security must sign off; finance reviews order form"],
+  "need": ["Solution live before CallScribe renewal"],
+  "timeline": "Must be live before CallScribe contract renews on March 1st",
+  "metrics_mentioned": []
+ },
+ "pain_points": [],
+ "competitors_mentioned": [{"name": "CallScribe", "context": "Incumbent; contract renews on March 1st"}],
+ "objections": [],
+ "rep_commitments": [
+  {"commitment": "Send SOC 2 report", "due": "today", "explicit": true},
+  {"commitment": "Book the security review", "due": "next Tuesday", "explicit": true}
+ ],
+ "next_steps": [
+  {"action": "Send SOC 2 report", "owner": "rep", "due_date": "today"},
+  {"action": "Book security review", "owner": "rep", "due_date": "next Tuesday"},
+  {"action": "Take order form to finance if security approves", "owner": "prospect", "due_date": ""}
+ ],
+ "risk_flags": ["Security sign-off required before purchase", "CallScribe renewal on March 1st is a deadline"],
+ "recommended_stage": "",
+ "confidence": 0.8
+}
+}}

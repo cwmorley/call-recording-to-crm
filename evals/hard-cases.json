@@ -1,0 +1,260 @@
+{
+  "_meta": {
+    "synthetic": true,
+    "note": "Hand-written synthetic transcripts designed to be hard. Every prospect company and every person named here is fictional. Real vendor product names (Gong, Clari, HubSpot, Salesforce, Zoho) appear only as tools or competitors mentioned in conversation; nothing here describes those vendors' real products, pricing or customers. The seller throughout is an unnamed call-recording-to-CRM vendor. No real call audio or customer data.",
+    "scoring_note": "Each case carries a 'rationale' field next to 'expected'. It is part of the answer key: strip both before sending transcripts to a model. Segments carry start/end timestamps in seconds; the original easy set has none."
+  },
+  "cases": [
+    {
+      "id": "hard-alverwick-veterinary",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 6.8, "text": "Hey Dana, thanks for hopping on. So, um, where did we land with IT?"},
+        {"speaker": "PROSPECT", "start": 7.2, "end": 19.5, "text": "Yeah, so, IT has your questionnaire. The one you filled in. They're going through it now, it's like ninety questions, so it's taking a minute."},
+        {"speaker": "REP", "start": 19.9, "end": 27.4, "text": "Right, yeah, I sent that back last Tuesday with the SOC 2 summary attached, so hopefully that covers most of it."},
+        {"speaker": "PROSPECT", "start": 27.8, "end": 45.1, "text": "It does, mostly. Okay so here's what I'll do. I'll get you the signed-off questionnaire, or whatever comments they have, by Friday. And Hamid, our IT lead, he said he'll check whether the phones can even do dual-channel recording."},
+        {"speaker": "REP", "start": 45.5, "end": 52.0, "text": "Okay, perfect. Honestly that's the main thing. There's nothing I need to do until that comes back."},
+        {"speaker": "PROSPECT", "start": 52.3, "end": 66.9, "text": "Good, because I'm, like, buried this week. Oh, and I'm going to book half an hour with Maureen, our practice director, probably week after next, so she can see the numbers before anything gets signed."},
+        {"speaker": "REP", "start": 67.3, "end": 74.0, "text": "Makes sense. Is there anything you want from me for that, or is the deck I sent enough?"},
+        {"speaker": "PROSPECT", "start": 74.4, "end": 80.2, "text": "No, the deck's fine, I've got it. I'll just walk her through it."},
+        {"speaker": "REP", "start": 80.6, "end": 86.1, "text": "Great. Then yeah, ball's in your court, Dana. Just reply on the same thread when IT's done."},
+        {"speaker": "PROSPECT", "start": 86.4, "end": 90.0, "text": "Will do. Thanks, Sam."},
+        {"speaker": "REP", "start": 90.3, "end": 92.0, "text": "Cheers, speak soon."}
+      ],
+      "expected": {
+        "rep_commitments": [],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Dana sends IT's sign-off or comments on the security questionnaire by Friday",
+          "Hamid (IT lead) checks whether the phones support dual-channel recording",
+          "Dana books half an hour with Maureen (practice director), probably week after next, and walks her through the deck"
+        ]
+      },
+      "rationale": "Traps 1, 2 and 8: every forward promise ('I'll get you the signed-off questionnaire by Friday', the Maureen meeting, the walkthrough) is the prospect's or their colleague's, and the rep's only first-person actions (questionnaire, SOC 2 summary, deck) were already done. The rep explicitly says there is nothing to do until IT replies, so the rep commitment list is empty."
+    },
+    {
+      "id": "hard-birchmoor-lettings",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 8.0, "text": "Imran, hi, thanks. So I know you had a list of, um, open questions from last time?"},
+        {"speaker": "PROSPECT", "start": 8.4, "end": 22.0, "text": "Yeah, a few. First one, the contract. Did legal ever get the MSA? Because I haven't seen it."},
+        {"speaker": "REP", "start": 22.4, "end": 31.0, "text": "So I sent the MSA over yesterday afternoon, to you and to, uh, Bethany in legal. Might be in spam, it had a big attachment."},
+        {"speaker": "PROSPECT", "start": 31.3, "end": 41.0, "text": "Ah, okay, I'll check. Second thing, the pilot. Thirty days feels short for us, honestly, because of the lettings cycle."},
+        {"speaker": "REP", "start": 41.4, "end": 56.0, "text": "Yeah, I get that. So if legal's okay with it on our side, I could probably stretch the pilot to sixty days. I just can't say yes to that myself."},
+        {"speaker": "PROSPECT", "start": 56.3, "end": 62.0, "text": "Okay. And pricing? We need numbers for the budget meeting."},
+        {"speaker": "REP", "start": 62.4, "end": 75.0, "text": "Honestly I can't promise pricing this week. Finance is mid quarter-close and everything's stuck behind that. Next week's more realistic, but I don't want to give you a date and then miss it."},
+        {"speaker": "PROSPECT", "start": 75.4, "end": 88.0, "text": "Fair. Last one, the Welsh-language thing. Like half our tenant calls in Cardiff are in Welsh."},
+        {"speaker": "REP", "start": 88.4, "end": 101.0, "text": "Yeah, so, I'll try and see whether Welsh transcription is anywhere on the roadmap. I genuinely don't know, so no promises there."},
+        {"speaker": "PROSPECT", "start": 101.3, "end": 110.0, "text": "Okay. So what actually happens next?"},
+        {"speaker": "REP", "start": 110.4, "end": 124.0, "text": "What I will do is send you the pilot success criteria doc tomorrow morning, so you can mark it up before we talk about the length."},
+        {"speaker": "PROSPECT", "start": 124.3, "end": 133.0, "text": "Great. I'll share that with our ops manager when it lands."},
+        {"speaker": "REP", "start": 133.4, "end": 137.0, "text": "Perfect. Thanks, Imran."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send the pilot success criteria document tomorrow morning"
+        ],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Imran checks spam for the MSA",
+          "Imran shares the pilot success criteria document with the ops manager"
+        ]
+      },
+      "rationale": "Trap 2, all four forms: the MSA was already sent (done), the sixty-day pilot depends on legal (conditional), pricing is explicitly declined with no date, and the Welsh roadmap check is 'I'll try and see... no promises' (hedged). Only the success criteria document is an unconditional rep commitment."
+    },
+    {
+      "id": "hard-cedarvane-physio",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 9.0, "text": "Alright, so that's the redaction piece. Does that, um, does that answer what Lena was worried about?"},
+        {"speaker": "PROSPECT", "start": 9.3, "end": 27.0, "text": "Mostly. She's our compliance lead, she's going to want it in writing though. Could you put together a one-pager on how the patient data is handled? Like, ideally by Thursday, she's got a review Friday."},
+        {"speaker": "REP", "start": 27.3, "end": 30.0, "text": "Yeah, sure, Thursday's fine."},
+        {"speaker": "PROSPECT", "start": 30.3, "end": 46.0, "text": "Great. And, sorry, the deck you showed, the numbers on slide six were the old ones, right? Can you resend it with the updated ones?"},
+        {"speaker": "REP", "start": 46.3, "end": 52.0, "text": "Yep, that's on my list for today."},
+        {"speaker": "PROSPECT", "start": 52.3, "end": 70.0, "text": "Cool. Honestly we looked at Gong last year, very briefly, and it was way too much for a twelve-clinic physio group. So the simpler the better for us."},
+        {"speaker": "REP", "start": 70.3, "end": 80.0, "text": "That's what we hear a lot. Would it help for Lena to see the redaction live, rather than just reading about it?"},
+        {"speaker": "PROSPECT", "start": 80.3, "end": 88.0, "text": "Probably, yeah. She's free Wednesday afternoons usually."},
+        {"speaker": "REP", "start": 88.3, "end": 95.0, "text": "Okay, let's say Wednesday at three, then. I'll get an invite out to both of you."},
+        {"speaker": "PROSPECT", "start": 95.3, "end": 104.0, "text": "Lovely. I'll forward you her email after this, I don't think you have it."},
+        {"speaker": "REP", "start": 104.3, "end": 108.0, "text": "I don't, no. Thanks, Harriet."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Write a one-pager on how patient data is handled, for Lena, by Thursday",
+          "Resend the deck with updated numbers today",
+          "Send Harriet and Lena an invite for a live redaction walkthrough on Wednesday at 3"
+        ],
+        "competitors_mentioned": [
+          "Gong"
+        ],
+        "next_steps": [
+          "Harriet forwards Lena's email address",
+          "Lena's compliance review on Friday"
+        ]
+      },
+      "rationale": "Trap 3 (with trap 4, competitor in passing): two commitments exist only as short replies to the prospect's requests ('Yeah, sure, Thursday's fine'; 'that's on my list for today'), so the deliverable and deadline must be taken from the prospect's turn; the third is the rep's own offer, accepted, then confirmed with a date and invite. Gong is named as a tool they evaluated for the same job, so it counts, consistent with the original set counting a previously trialled tool."
+    },
+    {
+      "id": "hard-dunholt-roofing",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 8.0, "text": "Gary, thanks. Before we get into it, can I just clarify something from your email? You said twelve reps, or twelve including the estimators?"},
+        {"speaker": "PROSPECT", "start": 8.3, "end": 22.0, "text": "Twelve reps. The estimators are separate, they're out on roofs all day, they don't do any calls really."},
+        {"speaker": "REP", "start": 22.3, "end": 32.0, "text": "Got it. And the calls you want captured, that's mostly inbound quotes, or the outbound stuff too?"},
+        {"speaker": "PROSPECT", "start": 32.3, "end": 52.0, "text": "Both. So our outreach is mostly, uh, cold calling homeowners after a storm, and then follow-ups. That's where stuff gets lost. Someone says call me Tuesday and nobody calls them Tuesday."},
+        {"speaker": "REP", "start": 52.3, "end": 58.0, "text": "Yeah. That's exactly the gap."},
+        {"speaker": "PROSPECT", "start": 58.3, "end": 76.0, "text": "And the lads are competitive, right, there's a gong on the sales floor, they hit it every time they close a job. So if this slows them down even a bit, they'll hate it."},
+        {"speaker": "REP", "start": 76.3, "end": 90.0, "text": "Fair. To clarify, they don't do anything different. They just make the call, and the notes and follow-ups land in the CRM afterwards."},
+        {"speaker": "PROSPECT", "start": 90.3, "end": 100.0, "text": "Okay. Can you clarify what happens if the customer says don't record me?"},
+        {"speaker": "REP", "start": 100.3, "end": 115.0, "text": "Sure. The rep stops recording, and that call just gets a manual note. I'll email you the one-page consent script we give customers, I'll do it this afternoon."},
+        {"speaker": "PROSPECT", "start": 115.3, "end": 123.0, "text": "Great. I'll run it past our office manager, she does all the compliance bits."},
+        {"speaker": "REP", "start": 123.3, "end": 126.0, "text": "Perfect. Thanks, Gary."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Email the one-page consent script this afternoon"
+        ],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Gary runs the consent script past the office manager"
+        ]
+      },
+      "rationale": "Trap 4, lookalikes: 'clarify' appears four times with no mention of Clari, 'outreach' is the generic word for their cold calling, and 'gong' is a physical gong on the sales floor. No vendor is named at all, so competitors is empty."
+    },
+    {
+      "id": "hard-elmsworth-brokers",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 9.0, "text": "Nadia, hi. So, quick one first, which CRM are you on? It changes how we set things up."},
+        {"speaker": "PROSPECT", "start": 9.3, "end": 24.0, "text": "HubSpot. We've been on HubSpot six years, and before you ask, we're not moving off it, everything's in there."},
+        {"speaker": "REP", "start": 24.3, "end": 36.0, "text": "No, that's ideal. We write straight into HubSpot, so the call notes and tasks just show up on the contact record."},
+        {"speaker": "PROSPECT", "start": 36.3, "end": 52.0, "text": "Okay good. And the quoting side we do in Zoho, but that's a separate team, they don't really need this."},
+        {"speaker": "REP", "start": 52.3, "end": 58.0, "text": "Understood, so just the HubSpot side."},
+        {"speaker": "PROSPECT", "start": 58.3, "end": 80.0, "text": "Yeah. Funny, actually, our MD saw Clari's call recording thing at a conference in the spring and got all excited, but it was way more than we need, so that sort of died."},
+        {"speaker": "REP", "start": 80.3, "end": 92.0, "text": "That's fair, it's a bigger platform. Ours is narrower. So for the HubSpot setup, I'll send you our field-mapping template by Friday, and you just tick which fields you want filled."},
+        {"speaker": "PROSPECT", "start": 92.3, "end": 102.0, "text": "Perfect. I'll get our HubSpot admin, Callum, to fill it in. He's the one who'll know."},
+        {"speaker": "REP", "start": 102.3, "end": 106.0, "text": "Great, thanks Nadia."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send the HubSpot field-mapping template by Friday"
+        ],
+        "competitors_mentioned": [
+          "Clari"
+        ],
+        "next_steps": [
+          "Callum (HubSpot admin) fills in the field-mapping template"
+        ]
+      },
+      "rationale": "Trap 4, current tool versus competitor: HubSpot is the prospect's CRM and the seller's integration target, and Zoho is their quoting tool; neither is an alternative to the seller. Clari is named once, in passing, as a call recording product the MD considered, so it is the only competitor."
+    },
+    {
+      "id": "hard-fernstow-logistics",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 8.0, "text": "So, Wendy, you've had the quote for a week now. How's it landing?"},
+        {"speaker": "PROSPECT", "start": 8.3, "end": 24.0, "text": "Honestly, it's fine, but the seat count's wrong. We're at forty reps now, not twenty-five. We hired a whole night shift."},
+        {"speaker": "REP", "start": 24.3, "end": 34.0, "text": "Oh, congrats. Okay, so I'll redo the quote for forty seats, same per-seat price, and you'll have it tomorrow."},
+        {"speaker": "PROSPECT", "start": 34.3, "end": 50.0, "text": "Great. And look, at forty seats, can you do fifteen percent off? If you can, I think we sign by the thirtieth."},
+        {"speaker": "REP", "start": 50.3, "end": 66.0, "text": "I hear you. I can't do fifteen, that's just not something I'm able to offer. What I'll do is ask my manager whether there's any room on a two-year term, and I'll come back to you by Tuesday either way."},
+        {"speaker": "PROSPECT", "start": 66.3, "end": 80.0, "text": "Okay. And we'd need it live by January fifth, that's when the new contract with the retailer kicks in."},
+        {"speaker": "REP", "start": 80.3, "end": 94.0, "text": "January fifth is tight. I don't want to commit to that until onboarding has looked at your setup. I'm not saying no, I'm just not saying yes yet."},
+        {"speaker": "PROSPECT", "start": 94.3, "end": 104.0, "text": "Fine. I'll send you the shift rota so onboarding can see what they're dealing with."},
+        {"speaker": "REP", "start": 104.3, "end": 108.0, "text": "That'd help, thanks."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send a revised quote for 40 seats at the same per-seat price tomorrow",
+          "Ask the manager whether there is any pricing flexibility on a two-year term and reply by Tuesday"
+        ],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Wendy sends the shift rota"
+        ]
+      },
+      "rationale": "Trap 5: '15% off', 'sign by the thirtieth' and 'live by January fifth' are said only by the prospect; the rep refuses the discount and explicitly withholds the go-live date. A correct answer contains neither figure. The rep's real commitments are the 40-seat requote and the manager question with a Tuesday reply."
+    },
+    {
+      "id": "hard-gravenor-staffing",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 10.0, "text": "Martin, thanks. So the main thing today is getting the technical demo booked for your team."},
+        {"speaker": "PROSPECT", "start": 10.3, "end": 20.0, "text": "Yeah. Our recruiters want to see it on real calls, not a slideshow."},
+        {"speaker": "REP", "start": 20.3, "end": 36.0, "text": "Totally. So our SE, Priya, she'll run the technical demo, and she's got Thursday the twentieth at two o'clock held for you. She'll do it on your own recordings if you can get us some."},
+        {"speaker": "PROSPECT", "start": 36.3, "end": 50.0, "text": "We can. My colleague Tomasz runs our phone system, he'll send over five or six sample recordings before then. Probably Monday."},
+        {"speaker": "REP", "start": 50.3, "end": 62.0, "text": "Brilliant. And Marco from our onboarding team might be able to hop on too, if he's free, he's good on the integration questions."},
+        {"speaker": "PROSPECT", "start": 62.3, "end": 70.0, "text": "Okay. Who sends the invite?"},
+        {"speaker": "REP", "start": 70.3, "end": 76.0, "text": "I'll send the calendar invite today, to you and Tomasz."},
+        {"speaker": "PROSPECT", "start": 76.3, "end": 88.0, "text": "Perfect. And Ruth in IT will want to whitelist your domain, she said she'd sort that this week."},
+        {"speaker": "REP", "start": 88.3, "end": 92.0, "text": "Great, thanks Martin."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Priya (solutions engineer) runs the technical demo on Thursday the 20th at 2pm",
+          "Send the calendar invite to Martin and Tomasz today"
+        ],
+        "competitors_mentioned": [],
+        "next_steps": [
+          "Tomasz sends five or six sample call recordings before the demo, probably Monday",
+          "Ruth (IT) whitelists the seller's domain this week"
+        ]
+      },
+      "rationale": "Trap 6: Priya is the seller's SE, so her demo is a selling-side commitment even though the rep does not own it; Tomasz's recordings and Ruth's whitelisting are the prospect's colleagues and belong in next steps, not rep commitments. Marco 'might be able to hop on, if he's free' is hedged and excluded."
+    },
+    {
+      "id": "hard-holbeck-pryce-wholesale",
+      "segments": [
+        {"speaker": "REP", "start": 0.0, "end": 4.6, "text": "Rob, hi, can you hear me okay? I think my headset's being weird."},
+        {"speaker": "PROSPECT", "start": 5.0, "end": 8.2, "text": "Yeah, you're fine. Bit of an echo but fine."},
+        {"speaker": "REP", "start": 8.6, "end": 13.1, "text": "Okay, great. Thanks for making the time, I know Mondays are a lot."},
+        {"speaker": "PROSPECT", "start": 13.5, "end": 17.0, "text": "Ha, every day's a lot at the minute. We're mid-stocktake."},
+        {"speaker": "REP", "start": 17.4, "end": 28.9, "text": "Oh no. Okay, let's keep it tight then. So last time we talked mostly about the sales team. Today I wanted to get into the actual setup, the systems side."},
+        {"speaker": "PROSPECT", "start": 29.3, "end": 32.1, "text": "Sure. So, you know we're on Salesforce."},
+        {"speaker": "REP", "start": 32.5, "end": 35.0, "text": "Yep. Which edition, do you know?"},
+        {"speaker": "PROSPECT", "start": 35.4, "end": 46.8, "text": "Enterprise, I think. Our admin would know. Kev. He's half the reason I'm on this call, he's sick of chasing reps for notes."},
+        {"speaker": "REP", "start": 47.2, "end": 53.5, "text": "That's very common. And how are the reps logging calls today, is it all manual?"},
+        {"speaker": "PROSPECT", "start": 53.9, "end": 68.7, "text": "All manual. Some of them do it, some of them don't. We actually trialled Gong a couple of years ago, but it was before my time, and from what I hear nobody used it after the first month."},
+        {"speaker": "REP", "start": 69.1, "end": 71.4, "text": "Do you know why it didn't stick?"},
+        {"speaker": "PROSPECT", "start": 71.8, "end": 81.0, "text": "Honestly, I think it was the price, and it was a lot of dashboards for people who just want their notes done."},
+        {"speaker": "REP", "start": 81.4, "end": 87.2, "text": "Yeah, that's fair. Ours is pretty much the notes and the follow-ups, not a lot else."},
+        {"speaker": "PROSPECT", "start": 87.6, "end": 89.3, "text": "Which is kind of the appeal."},
+        {"speaker": "REP", "start": 89.7, "end": 92.6, "text": "So how many reps would we be talking about?"},
+        {"speaker": "PROSPECT", "start": 93.0, "end": 96.4, "text": "Thirty-two on the phones, plus four team leads."},
+        {"speaker": "REP", "start": 96.8, "end": 101.2, "text": "And the calls, are they on softphones, desk phones, mobiles?"},
+        {"speaker": "PROSPECT", "start": 101.6, "end": 109.9, "text": "Mix. Mostly softphones through the browser. A few of the older lads still use the desk phones."},
+        {"speaker": "REP", "start": 110.3, "end": 118.4, "text": "Okay, that matters for the recording side, because the desk phones usually need the provider to switch something on."},
+        {"speaker": "PROSPECT", "start": 118.8, "end": 135.5, "text": "Right. And Kev's main worry is the API, honestly. He had a bad experience with something hammering the Salesforce API limits last year and it took the whole org down for an afternoon."},
+        {"speaker": "REP", "start": 135.9, "end": 151.7, "text": "Oh, that's painful. So, we batch the writes, we don't hit it per field. But look, I'll send Kev our API usage and rate-limit doc, end of day tomorrow, so he can see the actual numbers."},
+        {"speaker": "PROSPECT", "start": 152.1, "end": 156.0, "text": "That would help a lot, yeah. He'll want that before anything else."},
+        {"speaker": "REP", "start": 156.4, "end": 159.3, "text": "Is it best to send it to you or straight to him?"},
+        {"speaker": "PROSPECT", "start": 159.7, "end": 165.8, "text": "Straight to him is fine, copy me in. I'll drop his email in the chat."},
+        {"speaker": "REP", "start": 166.2, "end": 167.0, "text": "Perfect."},
+        {"speaker": "PROSPECT", "start": 167.4, "end": 173.6, "text": "What about, like, our reps who do calls from the van? Does it work on mobiles?"},
+        {"speaker": "REP", "start": 174.0, "end": 185.9, "text": "It does through the app, but how it handles patchy signal, that one I'd want to check with our product team. I'm honestly not sure."},
+        {"speaker": "PROSPECT", "start": 186.3, "end": 191.5, "text": "Okay, not a dealbreaker, most of the calls are in the office."},
+        {"speaker": "REP", "start": 191.9, "end": 196.4, "text": "Good. And on timing, is there a date you're working towards?"},
+        {"speaker": "PROSPECT", "start": 196.8, "end": 210.2, "text": "Not really. Before the end of Q1 would be nice. I need to take it to our finance director, Shona, she signs off anything over ten grand."},
+        {"speaker": "REP", "start": 210.6, "end": 214.0, "text": "Makes sense. Would it help to have a short summary for her?"},
+        {"speaker": "PROSPECT", "start": 214.4, "end": 221.3, "text": "Maybe later. Let's see what Kev says first, honestly. No point if he says no."},
+        {"speaker": "REP", "start": 221.7, "end": 223.0, "text": "Fair enough."},
+        {"speaker": "PROSPECT", "start": 223.4, "end": 226.8, "text": "Right. I think that's all my questions, actually."},
+        {"speaker": "REP", "start": 227.2, "end": 234.9, "text": "Great. Well, that's really useful. So, are you doing anything this weekend, or is it all stocktake?"},
+        {"speaker": "PROSPECT", "start": 235.3, "end": 243.1, "text": "Stocktake Saturday, then my lad's got football Sunday. Under-tens. It's carnage."},
+        {"speaker": "REP", "start": 243.5, "end": 246.0, "text": "Ha, I bet. What position does he play?"},
+        {"speaker": "PROSPECT", "start": 246.4, "end": 251.2, "text": "Wherever the ball is, mostly. They all just chase it in a big pack."},
+        {"speaker": "REP", "start": 251.6, "end": 255.3, "text": "That's the best age for it, honestly. My nephew's the same."},
+        {"speaker": "PROSPECT", "start": 255.7, "end": 260.4, "text": "Supposed to be pouring down Sunday too, so that'll be fun on the sidelines."},
+        {"speaker": "REP", "start": 260.8, "end": 266.0, "text": "Take a flask. Okay, I'll let you go, Rob, I know you're busy."},
+        {"speaker": "PROSPECT", "start": 266.4, "end": 268.9, "text": "Ha, cheers. Nice to talk, Aisha."},
+        {"speaker": "REP", "start": 269.3, "end": 272.0, "text": "You too. Good luck with the stocktake."},
+        {"speaker": "PROSPECT", "start": 272.4, "end": 273.5, "text": "Thanks. Bye."}
+      ],
+      "expected": {
+        "rep_commitments": [
+          "Send Kev the API usage and rate-limit document by end of day tomorrow, copying Rob"
+        ],
+        "competitors_mentioned": [
+          "Gong"
+        ],
+        "next_steps": [
+          "Rob shares Kev's email address in the chat",
+          "Rob takes it to Shona (finance director) for sign-off after Kev's review, aiming for before the end of Q1"
+        ]
+      },
+      "rationale": "Trap 7: 44 turns with the only real rep commitment at turn 21, surrounded by decoys: 'I'd want to check with our product team' is hedged, the summary for Shona is an offer the prospect defers, and 'I'll let you go' in the small-talk ending is a sign-off. Salesforce is the prospect's CRM, not a competitor; Gong was trialled for the same job and counts."
+    }
+  ]
+}

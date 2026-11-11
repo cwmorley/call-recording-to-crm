@@ -10,6 +10,12 @@
 //                   and at least half of its content words must too (compared as
 //                   whole words with common endings removed). A heuristic: it
 //                   catches inventions, it does not prove a paraphrase is faithful.
+//   - speakers:     when the transcript labels the sides (REP / PROSPECT, from
+//                   dual-channel audio), the same words and numbers must have been
+//                   said by the REP. A promise only the prospect made is not a rep
+//                   commitment. Diarized (SPEAKER_n) and mono (SPEAKER) transcripts
+//                   say who spoke, not which side, so roles are never guessed: the
+//                   whole-transcript check is used and the record says so.
 //   - due dates:    a due value must be made of words from the transcript
 // Anything that fails a hard check is moved to _quarantined and the whole record
 // is routed to human review. Ungrounded quotes and due dates are stripped and
@@ -30,6 +36,13 @@ const saidWords = new Set(said);
 const saidStems = new Set(said.map(stem));
 const saidText = ' ' + said.join(' ') + ' ';
 const saysPhrase = (s) => { const t = tokens(s); return t.length > 0 && saidText.includes(' ' + t.join(' ') + ' '); };
+
+// Speaker roles are known only when the transcript carries side labels.
+const role = (s) => String((s && s.speaker) || '').trim().toLowerCase();
+const rolesKnown = segments.some((s) => role(s) === 'rep' || role(s) === 'prospect');
+const repSaid = tokens(segments.filter((s) => role(s) === 'rep').map((s) => s.text).join(' '));
+const repWords = new Set(repSaid);
+const repStems = new Set(repSaid.map(stem));
 
 const STOP = new Set(['that', 'this', 'with', 'from', 'will', 'have', 'they', 'them', 'their',
   'your', 'about', 'what', 'when', 'were', 'been', 'would', 'could', 'should', 'into', 'over',
@@ -72,17 +85,29 @@ const competitors = arr('competitors_mentioned').filter((c) => {
 });
 
 // --- rep commitments (hard) -----------------------------------------------
+// First: was it said at all? Then, if the sides are labelled: did the rep say it?
 const MIN_OVERLAP = 0.5;
+const covers = (words, inWords, inStems) =>
+  words.filter((w) => inWords.has(w) || inStems.has(stem(w))).length / words.length >= MIN_OVERLAP;
 const quarantine = (c, code, detail) => {
   quarantined.rep_commitments.push(c); hard(code, detail); return false; };
+let wholeTranscriptOnly = false;
 const commitments = arr('rep_commitments').filter((c) => {
   const text = c && c.commitment;
   const words = contentWords(text);
   if (!words.length) return quarantine(c, 'empty_commitment', 'commitment has no checkable content');
-  const found = words.filter((w) => saidWords.has(w) || saidStems.has(stem(w))).length;
-  if (found / words.length < MIN_OVERLAP) return quarantine(c, 'ungrounded_commitment', String(text).slice(0, 120));
+  if (!rolesKnown) wholeTranscriptOnly = true;
+  if (!covers(words, saidWords, saidStems)) return quarantine(c, 'ungrounded_commitment', String(text).slice(0, 120));
   const missing = numbers(text).filter((n) => !saidWords.has(n));
   if (missing.length) return quarantine(c, 'ungrounded_number', missing.join(', ') + ' in: ' + String(text).slice(0, 100));
+  if (!rolesKnown) return true;
+  if (!covers(words, repWords, repStems)) {
+    return quarantine(c, 'commitment_wrong_speaker', 'not said by the rep: ' + String(text).slice(0, 100));
+  }
+  const notByRep = numbers(text).filter((n) => !repWords.has(n));
+  if (notByRep.length) {
+    return quarantine(c, 'commitment_wrong_speaker', notByRep.join(', ') + ' not said by the rep in: ' + String(text).slice(0, 100));
+  }
   return true;
 }).map((c) => {
   // due dates (soft: strip the date, keep the commitment)
@@ -92,6 +117,11 @@ const commitments = arr('rep_commitments').filter((c) => {
   }
   return c;
 });
+if (wholeTranscriptOnly) {
+  const labels = [...new Set(segments.map((s) => String((s && s.speaker) || '(none)')))].slice(0, 5);
+  soft('speaker_roles_unknown', 'speaker labels: ' + (labels.join(', ') || '(no segments)')
+    + '; commitments were checked against the whole transcript, not the rep\'s turns');
+}
 
 // --- pipeline health ------------------------------------------------------
 const failed = Number(rec.provenance && rec.provenance.chunks_failed) || 0;
@@ -111,5 +141,5 @@ return [{ json: {
   rep_commitments: commitments,
   _quarantined: quarantined,
   validation: { passed, clears_confidence: clearsConfidence, flags,
-    checks: ['shape', 'quotes', 'competitors', 'commitments', 'due_dates', 'pipeline_health'] },
+    checks: ['shape', 'quotes', 'competitors', 'commitments', 'speakers', 'due_dates', 'pipeline_health'] },
   _gate: passed && clearsConfidence ? 1 : 0 } }];

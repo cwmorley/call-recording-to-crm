@@ -30,8 +30,8 @@ What is verified, and how:
 
 - **Node logic is tested outside n8n.** `npm test` runs the exact code that ships
   inside each Code node against synthetic transcripts and model responses.
-  60 tests cover ingest, provider election, transcript normalization, chunking,
-  response parsing, the reducer, the validator, the review path, the CRM
+  74 tests cover ingest, provider election, transcript normalization, chunking,
+  response parsing, the reducer, the validator (including speaker attribution), the review path, the CRM
   adapters, key handling, the workflow wiring, and the eval scorer. 5 Python
   tests cover the transcription service's path guard.
 - **The workflow file is a build output.** `src/nodes/*.js` is the source of
@@ -61,7 +61,10 @@ What is not verified yet:
   `HH:mm`, which is what the adapter sends; whether a live org reads it that
   way is unconfirmed. Whether HubSpot renders line breaks in `hs_call_body` is
   unconfirmed.
-- **No live model run.** The eval set scores hand-written sample outputs only.
+- **No model call through the workflow.** `evals/outputs/models/` holds extractions that four
+  models produced from the repository's prompt and schema inside an agent session (see
+  Evaluation). That is model output, but it did not go through the `LLM Call` node, the
+  chunker, or any provider's API parameters as the workflow sends them.
 - **The transcription service has not been run.** Its path guard is unit
   tested; the model and diarization code needs a GPU and model weights.
 - **Whether `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` also unblocks `$env` in the
@@ -80,6 +83,7 @@ extraction against the transcript:
 | Competitors | The name must appear in the transcript as whole words (`Clari` is not grounded by `clarify`) | Quarantined, human review |
 | Rep commitments | At least half the content words must appear in the transcript, compared as whole words with common endings removed | Quarantined, human review |
 | Numbers | Every number in a rep commitment must appear in the transcript | Quarantined, human review |
+| Speaker attribution | When segments are labelled `REP` and `PROSPECT`, a commitment's words and numbers must appear in the rep's turns | Quarantined with `commitment_wrong_speaker`, human review |
 | Due dates | A `due` value must be made of words from the transcript | Due date stripped, flagged |
 | Pipeline health | No chunk returned unparseable output; the record is not empty | Human review |
 
@@ -88,8 +92,12 @@ confidence clears `MIN_CONFIDENCE`. The gate fails closed, and a test asserts
 that the review branch cannot reach `CRM Write`.
 
 The commitment check is a heuristic. It catches invented commitments; it does not
-prove a paraphrase is faithful, and it does not check that the words were spoken
-by the rep rather than the prospect. A number written as digits when the speaker
+prove a paraphrase is faithful. Speaker attribution needs dual-channel audio: on
+diarized or mono transcripts (`SPEAKER`, `SPEAKER_n`) the validator falls back to
+whole-transcript matching and records a soft `speaker_roles_unknown` flag. Even
+with roles it misses a rep reading back the prospect's promise, and it holds a
+real commitment made as a short reply ("Sure, Thursday's fine") because the
+content words were the prospect's. A number written as digits when the speaker
 said it in words (`20` for "twenty") is sent to review rather than passed. Quarantined items stay on the record under
 `_quarantined` so a reviewer can see what was held back and why.
 
@@ -104,8 +112,9 @@ written by hand) with the expected rep commitments, competitors and next steps
 for each. `npm run eval` scores a file of model outputs against them and runs
 each output through the shipped reducer and validator:
 
-- precision and recall for rep commitments (token-overlap match, rule documented
-  in `scripts/eval.mjs`) and competitors
+- precision and recall for firm rep commitments (token-overlap match, rule documented
+  in `scripts/eval.mjs`) and competitors, with soft (`explicit: false`) commitments
+  counted separately
 - the share of quotes that are exact transcript substrings
 - how many records the validator would send to review
 
@@ -119,6 +128,59 @@ missed commitment lowers recall without holding anything.
 
 To score a real run, save one extraction per case id in the same file shape
 and pass the path to `node scripts/eval.mjs`.
+
+### Model outputs (recorded 2026-11-10)
+
+`evals/outputs/models/` holds extractions produced by four Claude models. Each
+was given the system prompt and JSON schema from `Build LLM Request` and the
+transcripts only, with no expected answers, inside an agent session. They were
+not produced by a direct API call or by running the workflow, so treat them as
+evidence about the prompt and the validator, not about the pipeline.
+
+On the original five cases every model scored precision 1 and recall 1 on
+commitments and competitors. A set that four models of very different cost all
+ace cannot separate models or catch a regression, so `evals/hard-cases.json`
+adds eight harder synthetic transcripts: prospect promises, hedged and declined
+commitments, commitments made as short replies, look-alike words (`clarify`, a
+physical gong), numbers only the prospect said, third-party commitments, and a
+44-turn call with one buried commitment.
+
+```
+node scripts/eval.mjs evals/outputs/models/hard/opus.json --cases evals/hard-cases.json
+```
+
+| Model | Firm commitment precision | Firm commitment recall | Soft commitments | Competitor precision / recall | Sent to review |
+| --- | --- | --- | --- | --- | --- |
+| Haiku | 0.92 | 1.00 | 1 | 1 / 1 | 1 of 8 |
+| Sonnet | 1.00 | 0.91 | 2 | 1 / 1 | 1 of 8 |
+| Opus | 1.00 | 1.00 | 0 | 1 / 1 | 1 of 8 |
+| Fable | 1.00 | 1.00 | 2 | 1 / 1 | 1 of 8 |
+
+Read these numbers with care:
+
+- **Eleven expected commitments is too few to rank models.** One item moves
+  recall by nine points.
+- **The scorer was changed after the first run.** The first version (60% token
+  overlap, no stemming, `explicit` ignored) reported precision of 0.69 to 0.83.
+  Reading every mismatch by hand showed two scorer faults: correct paraphrases
+  marked wrong, and correctly hedged items (`explicit: false`) counted as
+  errors. The rule is now 40% overlap on stemmed tokens with the strongest pair
+  matched first, and firm and soft commitments are counted separately. The
+  hand-written `flawed.json` sample scores the same under both rules, so the
+  looser rule still catches the planted errors. One person did the reading.
+- **The real model errors were two.** Haiku recorded a hedged statement ("I'll
+  try to find out, no promises") as a firm commitment. Sonnet omitted a
+  commitment owned by the seller's solutions engineer.
+- **The validator held one real commitment set.** In `hard-cedarvane-physio`
+  the rep commits with short replies to the prospect's requests. Every model
+  extracted the commitments correctly and the speaker check quarantined them,
+  because the content words were spoken by the prospect. The record goes to
+  review, so nothing wrong is written, but it is a false hold.
+- **No look-alike word produced a competitor**, and no number said only by the
+  prospect entered a rep commitment, for any model.
+
+The hard cases were written by a model (Opus) to a brief listing the traps, and
+their expected answers were not reviewed by a second person.
 
 ## Known limitations
 
