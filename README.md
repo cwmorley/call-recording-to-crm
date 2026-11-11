@@ -30,7 +30,7 @@ What is verified, and how:
 
 - **Node logic is tested outside n8n.** `npm test` runs the exact code that ships
   inside each Code node against synthetic transcripts and model responses.
-  70 tests cover ingest, provider election, transcript normalization, chunking,
+  74 tests cover ingest, provider election, transcript normalization, chunking,
   response parsing, the reducer, the validator (including speaker attribution), the review path, the CRM
   adapters, key handling, the workflow wiring, and the eval scorer. 5 Python
   tests cover the transcription service's path guard.
@@ -112,8 +112,9 @@ written by hand) with the expected rep commitments, competitors and next steps
 for each. `npm run eval` scores a file of model outputs against them and runs
 each output through the shipped reducer and validator:
 
-- precision and recall for rep commitments (token-overlap match, rule documented
-  in `scripts/eval.mjs`) and competitors
+- precision and recall for firm rep commitments (token-overlap match, rule documented
+  in `scripts/eval.mjs`) and competitors, with soft (`explicit: false`) commitments
+  counted separately
 - the share of quotes that are exact transcript substrings
 - how many records the validator would send to review
 
@@ -148,26 +149,28 @@ physical gong), numbers only the prospect said, third-party commitments, and a
 node scripts/eval.mjs evals/outputs/models/hard/opus.json --cases evals/hard-cases.json
 ```
 
-| Model | Commitment precision | Commitment recall | Competitor precision / recall | Sent to review |
-| --- | --- | --- | --- | --- |
-| Haiku | 0.69 | 0.82 | 1 / 1 | 1 of 8 |
-| Sonnet | 0.83 | 0.91 | 1 / 1 | 1 of 8 |
-| Opus | 0.82 | 0.82 | 1 / 1 | 1 of 8 |
-| Fable | 0.77 | 0.91 | 1 / 1 | 1 of 8 |
+| Model | Firm commitment precision | Firm commitment recall | Soft commitments | Competitor precision / recall | Sent to review |
+| --- | --- | --- | --- | --- | --- |
+| Haiku | 0.92 | 1.00 | 1 | 1 / 1 | 1 of 8 |
+| Sonnet | 1.00 | 0.91 | 2 | 1 / 1 | 1 of 8 |
+| Opus | 1.00 | 1.00 | 0 | 1 / 1 | 1 of 8 |
+| Fable | 1.00 | 1.00 | 2 | 1 / 1 | 1 of 8 |
 
 Read these numbers with care:
 
 - **Eleven expected commitments is too few to rank models.** One item moves
   recall by nine points.
-- **The scorer undercounts.** Reading the mismatches by hand, several "extra"
-  and "missed" pairs are the same commitment worded differently (the 60%
-  token-overlap rule fails against long expected strings). Counted by hand,
-  Opus made no errors and Haiku and Fable missed none.
-- **The scorer ignores `explicit`.** The common real error was recording a
-  hedged statement ("I'll try to find out, no promises") as a commitment.
-  Sonnet and Fable recorded those with `explicit: false`; Haiku marked one
-  `explicit: true`. Scoring firm and soft commitments separately is the next
-  change to the scorer.
+- **The scorer was changed after the first run.** The first version (60% token
+  overlap, no stemming, `explicit` ignored) reported precision of 0.69 to 0.83.
+  Reading every mismatch by hand showed two scorer faults: correct paraphrases
+  marked wrong, and correctly hedged items (`explicit: false`) counted as
+  errors. The rule is now 40% overlap on stemmed tokens with the strongest pair
+  matched first, and firm and soft commitments are counted separately. The
+  hand-written `flawed.json` sample scores the same under both rules, so the
+  looser rule still catches the planted errors. One person did the reading.
+- **The real model errors were two.** Haiku recorded a hedged statement ("I'll
+  try to find out, no promises") as a firm commitment. Sonnet omitted a
+  commitment owned by the seller's solutions engineer.
 - **The validator held one real commitment set.** In `hard-cedarvane-physio`
   the rep commits with short replies to the prospect's requests. Every model
   extracted the commitments correctly and the speaker check quarantined them,
